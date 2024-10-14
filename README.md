@@ -1,3 +1,6 @@
+# Forked from [jackpal/Android-Terminal-Emulator](http://github.com/jackpal/Android-Terminal-Emulator)
+
+
 # Terminal Emulator for Android
 
 *Note:* Terminal Emulator for Android development has ended. I am not
