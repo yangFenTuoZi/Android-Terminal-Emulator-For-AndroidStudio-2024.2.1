@@ -14,135 +14,114 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm.util;
+package jackpal.androidterm.util
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.Collection;
-
-import jackpal.androidterm.emulatorview.TermSession;
-import jackpal.androidterm.emulatorview.UpdateCallback;
+import jackpal.androidterm.emulatorview.TermSession
+import jackpal.androidterm.emulatorview.UpdateCallback
 
 /**
  * An ArrayList of TermSessions which allows users to register callbacks in
  * order to be notified when the list is changed.
  */
-public class SessionList extends ArrayList<TermSession>
-{
-    LinkedList<UpdateCallback> callbacks = new LinkedList<>();
-    LinkedList<UpdateCallback> titleChangedListeners = new LinkedList<>();
-    UpdateCallback mTitleChangedListener = this::notifyTitleChanged;
+class SessionList : ArrayList<TermSession> {
+    private val callbacks = mutableListOf<UpdateCallback>()
+    private val titleChangedListeners = mutableListOf<UpdateCallback>()
+    private val mTitleChangedListener = UpdateCallback { notifyTitleChanged() }
 
-    public SessionList() {
-        super();
+    constructor() : super()
+    constructor(capacity: Int) : super(capacity)
+
+    fun addCallback(callback: UpdateCallback) {
+        callbacks.add(callback)
+        callback.onUpdate()
     }
 
-    public SessionList(int capacity) {
-        super(capacity);
+    fun removeCallback(callback: UpdateCallback): Boolean {
+        return callbacks.remove(callback)
     }
 
-    public void addCallback(UpdateCallback callback) {
-        callbacks.add(callback);
-        callback.onUpdate();
-    }
-
-    public boolean removeCallback(UpdateCallback callback) {
-        return callbacks.remove(callback);
-    }
-
-    private void notifyChange() {
-        for (UpdateCallback callback : callbacks) {
-            callback.onUpdate();
+    private fun notifyChange() {
+        for (callback in callbacks) {
+            callback.onUpdate()
         }
     }
 
-    public void addTitleChangedListener(UpdateCallback listener) {
-        titleChangedListeners.add(listener);
-        listener.onUpdate();
+    fun addTitleChangedListener(listener: UpdateCallback) {
+        titleChangedListeners.add(listener)
+        listener.onUpdate()
     }
 
-    public boolean removeTitleChangedListener(UpdateCallback listener) {
-        return titleChangedListeners.remove(listener);
+    fun removeTitleChangedListener(listener: UpdateCallback): Boolean {
+        return titleChangedListeners.remove(listener)
     }
 
-    private void notifyTitleChanged() {
-        for (UpdateCallback listener : titleChangedListeners) {
-            listener.onUpdate();
+    private fun notifyTitleChanged() {
+        for (listener in titleChangedListeners) {
+            listener.onUpdate()
         }
     }
 
-    @Override
-    public boolean add(TermSession object) {
-        boolean result = super.add(object);
-        object.setTitleChangedListener(mTitleChangedListener);
-        notifyChange();
-        return result;
+    override fun add(element: TermSession): Boolean {
+        val result = super.add(element)
+        element.setTitleChangedListener(mTitleChangedListener)
+        notifyChange()
+        return result
     }
 
-    @Override
-    public void add(int index, TermSession object) {
-        super.add(index, object);
-        object.setTitleChangedListener(mTitleChangedListener);
-        notifyChange();
+    override fun add(index: Int, element: TermSession) {
+        super.add(index, element)
+        element.setTitleChangedListener(mTitleChangedListener)
+        notifyChange()
     }
 
-    @Override
-    public boolean addAll(Collection <? extends TermSession> collection) {
-        boolean result = super.addAll(collection);
-        for (TermSession session : collection) {
-            session.setTitleChangedListener(mTitleChangedListener);
+    override fun addAll(elements: Collection<TermSession>): Boolean {
+        val result = super.addAll(elements)
+        for (session in elements) {
+            session.setTitleChangedListener(mTitleChangedListener)
         }
-        notifyChange();
-        return result;
+        notifyChange()
+        return result
     }
 
-    @Override
-    public boolean addAll(int index, Collection <? extends TermSession> collection) {
-        boolean result = super.addAll(index, collection);
-        for (TermSession session : collection) {
-            session.setTitleChangedListener(mTitleChangedListener);
+    override fun addAll(index: Int, elements: Collection<TermSession>): Boolean {
+        val result = super.addAll(index, elements)
+        for (session in elements) {
+            session.setTitleChangedListener(mTitleChangedListener)
         }
-        notifyChange();
-        return result;
+        notifyChange()
+        return result
     }
 
-    @Override
-    public void clear() {
-        for (TermSession session : this) {
-            session.setTitleChangedListener(null);
+    override fun clear() {
+        for (session in this) {
+            session.setTitleChangedListener(null)
         }
-        super.clear();
-        notifyChange();
+        super.clear()
+        notifyChange()
     }
 
-    @Override
-    public TermSession remove(int index) {
-        TermSession object = super.remove(index);
-        if (object != null) {
-            object.setTitleChangedListener(null);
-            notifyChange();
-        }
-        return object;
+    override fun removeAt(index: Int): TermSession {
+        val obj = super.removeAt(index)
+        obj.setTitleChangedListener(null)
+        notifyChange()
+        return obj
     }
 
-    @Override
-    public boolean remove(Object object) {
-        boolean result = super.remove(object);
-        if (result && object instanceof TermSession) {
-            ((TermSession) object).setTitleChangedListener(null);
-            notifyChange();
+    override fun remove(element: TermSession): Boolean {
+        val result = super.remove(element)
+        if (result) {
+            element.setTitleChangedListener(null)
+            notifyChange()
         }
-        return result;
+        return result
     }
 
-    @Override
-    public TermSession set(int index, TermSession object) {
-        TermSession old = super.set(index, object);
-        object.setTitleChangedListener(mTitleChangedListener);
-        if (old != null) {
-            old.setTitleChangedListener(null);
-        }
-        notifyChange();
-        return old;
+    override fun set(index: Int, element: TermSession): TermSession {
+        val old = super.set(index, element)
+        element.setTitleChangedListener(mTitleChangedListener)
+        old.setTitleChangedListener(null)
+        notifyChange()
+        return old
     }
 }
+

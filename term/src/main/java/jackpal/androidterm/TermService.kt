@@ -14,216 +14,158 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.Service;
-import android.content.IntentSender;
-import android.content.SharedPreferences;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.net.Uri;
-import android.os.*;
-import android.content.Intent;
-import android.preference.PreferenceManager;
-import android.text.TextUtils;
-import android.util.Log;
-import android.app.PendingIntent;
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Intent
+import android.content.IntentSender
+import android.content.pm.PackageManager
+import android.os.Binder
+import android.os.Bundle
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.os.ParcelFileDescriptor
+import android.os.ResultReceiver
+import android.text.TextUtils
+import android.util.Log
+import androidx.core.content.edit
+import androidx.core.net.toUri
+import androidx.preference.PreferenceManager
+import jackpal.androidterm.compat.ServiceForegroundCompat
+import jackpal.androidterm.emulatorview.TermSession
+import jackpal.androidterm.libtermexec.v1.ITerminal
+import jackpal.androidterm.util.SessionList
+import jackpal.androidterm.util.TermSettings
+import java.util.UUID
 
-import jackpal.androidterm.emulatorview.TermSession;
+class TermService : Service(), TermSession.FinishCallback {
+    private var compat: ServiceForegroundCompat? = null
+    private var mTermSessions: SessionList = SessionList()
 
-import jackpal.androidterm.compat.ServiceForegroundCompat;
-import jackpal.androidterm.libtermexec.v1.*;
-import jackpal.androidterm.util.SessionList;
-import jackpal.androidterm.util.TermSettings;
-
-import java.util.UUID;
-
-public class TermService extends Service implements TermSession.FinishCallback {
-    /* Parallels the value of START_STICKY on API Level >= 5 */
-    private static final int COMPAT_START_STICKY = 1;
-
-    private static final int RUNNING_NOTIFICATION = 1;
-    private ServiceForegroundCompat compat;
-
-    private SessionList mTermSessions;
-
-    public class TSBinder extends Binder {
-        TermService getService() {
-            Log.i("TermService", "Activity binding to service");
-            return TermService.this;
-        }
+    inner class TSBinder : Binder() {
+        val service: TermService
+            get() = this@TermService
     }
 
-    private final IBinder mTSBinder = new TSBinder();
+    private val mTSBinder: IBinder = TSBinder()
 
-    /* This should be @Override if building with API Level >=5 */
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        return Service.START_STICKY;
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        return START_STICKY
     }
 
-    @Override
-    public IBinder onBind(Intent intent) {
-        if (TermExec.SERVICE_ACTION_V1.equals(intent.getAction())) {
-            Log.i("TermService", "Outside process called onBind()");
-
-            return new RBinder();
+    override fun onBind(intent: Intent): IBinder? {
+        return if (TermExec.SERVICE_ACTION_V1 == intent.action) {
+            Log.i("TermService", "Outside process called onBind()")
+            RBinder()
         } else {
-            Log.i("TermService", "Activity called onBind()");
-
-            return mTSBinder;
+            Log.i("TermService", "Activity called onBind()")
+            mTSBinder
         }
     }
 
-    @Override
-    public void onCreate() {
-        // should really belong to the Application class, but we don't use one...
-        final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-        SharedPreferences.Editor editor = prefs.edit();
-        String defValue = getDir("HOME", MODE_PRIVATE).getAbsolutePath();
-        String homePath = prefs.getString("home_path", defValue);
-        editor.putString("home_path", homePath);
-        editor.apply();
-
-        compat = new ServiceForegroundCompat(this);
-        mTermSessions = new SessionList();
-
-        /* Put the service in the foreground. */
-
-        String channelId = "term_service_channel";
-        String channelName = getString(R.string.application_terminal);
-        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW);
-        nm.createNotificationChannel(channel);
-
-        Intent notifyIntent = new Intent(this, Term.class);
-        notifyIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notifyIntent, PendingIntent.FLAG_IMMUTABLE);
-
-        Notification notification = new Notification.Builder(this, channelId)
-                .setSmallIcon(R.drawable.ic_stat_service_notification_icon)
-                .setContentTitle(getText(R.string.application_terminal))
-                .setContentText(getText(R.string.service_notify_text))
-                .setWhen(System.currentTimeMillis())
-                .setOngoing(true)
-                .setContentIntent(pendingIntent)
-                .build();
-
-
-        compat.startForeground(RUNNING_NOTIFICATION, notification);
-
-        Log.d(TermDebug.LOG_TAG, "TermService started");
-    }
-
-    @Override
-    public void onDestroy() {
-        compat.stopForeground(true);
-        for (TermSession session : mTermSessions) {
-            /* Don't automatically remove from list of sessions -- we clear the
-             * list below anyway and we could trigger
-             * ConcurrentModificationException if we do */
-            session.setFinishCallback(null);
-            session.finish();
+    override fun onCreate() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        prefs.edit {
+            val defValue = getDir("HOME", MODE_PRIVATE).absolutePath
+            val homePath = prefs.getString("home_path", defValue)
+            putString("home_path", homePath)
         }
-        mTermSessions.clear();
-        return;
+
+        compat = ServiceForegroundCompat(this)
+        mTermSessions = SessionList()
+
+        val channelId = "term_service_channel"
+        val channelName = getString(R.string.application_terminal)
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW)
+        nm.createNotificationChannel(channel)
+
+        val notifyIntent = Intent(this, Term::class.java)
+        notifyIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pendingIntent = PendingIntent.getActivity(this, 0, notifyIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = Notification.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_stat_service_notification_icon)
+            .setContentTitle(getText(R.string.application_terminal))
+            .setContentText(getText(R.string.service_notify_text))
+            .setWhen(System.currentTimeMillis())
+            .setOngoing(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        compat?.startForeground(1, notification)
+        Log.d(TermDebug.LOG_TAG, "TermService started")
     }
 
-    public SessionList getSessions() {
-        return mTermSessions;
+    override fun onDestroy() {
+        compat?.stopForeground(true)
+        for (session in mTermSessions) {
+            session.setFinishCallback(null)
+            session.finish()
+        }
+        mTermSessions.clear()
     }
 
-    public void onSessionFinish(TermSession session) {
-        mTermSessions.remove(session);
+    val sessions: SessionList
+        get() = mTermSessions
+
+    override fun onSessionFinish(session: TermSession) {
+        mTermSessions.remove(session)
     }
 
-    private final class RBinder extends ITerminal.Stub {
-        @Override
-        public IntentSender startSession(final ParcelFileDescriptor pseudoTerminalMultiplexerFd,
-                                         final ResultReceiver callback) {
-            final String sessionHandle = UUID.randomUUID().toString();
-
-            // distinct Intent Uri and PendingIntent requestCode must be sufficient to avoid collisions
-            final Intent switchIntent = new Intent(RemoteInterface.PRIVACT_OPEN_NEW_WINDOW)
-                    .setData(Uri.parse(sessionHandle))
-                    .addCategory(Intent.CATEGORY_DEFAULT)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    .putExtra(RemoteInterface.PRIVEXTRA_TARGET_WINDOW, sessionHandle);
-
-            final PendingIntent result = PendingIntent.getActivity(getApplicationContext(), sessionHandle.hashCode(),
-                    switchIntent, PendingIntent.FLAG_IMMUTABLE);
-
-            final PackageManager pm = getPackageManager();
-            final String[] pkgs = pm.getPackagesForUid(getCallingUid());
-            if (pkgs == null)
-                return null;
-
-            for (String packageName : pkgs) {
+    private inner class RBinder : ITerminal.Stub() {
+        override fun startSession(pseudoTerminalMultiplexerFd: ParcelFileDescriptor, callback: ResultReceiver): IntentSender? {
+            val sessionHandle = UUID.randomUUID().toString()
+            val switchIntent = Intent(RemoteInterface.PRIVACT_OPEN_NEW_WINDOW)
+                .setData(sessionHandle.toUri())
+                .addCategory(Intent.CATEGORY_DEFAULT)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(RemoteInterface.PRIVEXTRA_TARGET_WINDOW, sessionHandle)
+            val result = PendingIntent.getActivity(applicationContext, sessionHandle.hashCode(), switchIntent, PendingIntent.FLAG_IMMUTABLE)
+            val pm = packageManager
+            val pkgs = pm.getPackagesForUid(getCallingUid()) ?: return null
+            for (packageName in pkgs) {
                 try {
-                    final PackageInfo pkgInfo = pm.getPackageInfo(packageName, 0);
-
-                    final ApplicationInfo appInfo = pkgInfo.applicationInfo;
-                    if (appInfo == null)
-                        continue;
-
-                    final CharSequence label = pm.getApplicationLabel(appInfo);
-
+                    val pkgInfo = pm.getPackageInfo(packageName, 0)
+                    val appInfo = pkgInfo.applicationInfo ?: continue
+                    val label = pm.getApplicationLabel(appInfo)
                     if (!TextUtils.isEmpty(label)) {
-                        final String niceName = label.toString();
-
-                        new Handler(Looper.getMainLooper()).post(() -> {
-                            GenericTermSession session = null;
+                        val niceName = label.toString()
+                        Handler(Looper.getMainLooper()).post {
+                            var session: GenericTermSession? = null
                             try {
-                                final TermSettings settings = new TermSettings(getResources(),
-                                        PreferenceManager.getDefaultSharedPreferences(getApplicationContext()));
-
-                                session = new BoundSession(pseudoTerminalMultiplexerFd, settings, niceName);
-
-                                mTermSessions.add(session);
-
-                                session.setHandle(sessionHandle);
-                                session.setFinishCallback(new RBinderCleanupCallback(result, callback));
-                                session.setTitle("");
-
-                                session.initializeEmulator(80, 24);
-                            } catch (Exception whatWentWrong) {
-                                Log.e("TermService", "Failed to bootstrap AIDL session: "
-                                        + whatWentWrong.getMessage());
-
-                                if (session != null)
-                                    session.finish();
+                                val settings = TermSettings(resources, PreferenceManager.getDefaultSharedPreferences(applicationContext))
+                                session = BoundSession(pseudoTerminalMultiplexerFd, settings, niceName)
+                                mTermSessions.add(session)
+                                session.handle = sessionHandle
+                                session.setFinishCallback(RBinderCleanupCallback(result, callback))
+                                session.setTitle("")
+                                session.initializeEmulator(80, 24)
+                            } catch (e: Exception) {
+                                Log.e("TermService", "Failed to bootstrap AIDL session: " + e.message)
+                                session?.finish()
                             }
-                        });
-
-                        return result.getIntentSender();
+                        }
+                        return result.intentSender
                     }
-                } catch (PackageManager.NameNotFoundException ignore) {
+                } catch (_: PackageManager.NameNotFoundException) {
                 }
             }
-
-            return null;
+            return null
         }
     }
 
-    private final class RBinderCleanupCallback implements TermSession.FinishCallback {
-        private final PendingIntent result;
-        private final ResultReceiver callback;
-
-        public RBinderCleanupCallback(PendingIntent result, ResultReceiver callback) {
-            this.result = result;
-            this.callback = callback;
-        }
-
-        @Override
-        public void onSessionFinish(TermSession session) {
-            result.cancel();
-
-            callback.send(0, new Bundle());
-
-            mTermSessions.remove(session);
+    private inner class RBinderCleanupCallback(private val result: PendingIntent, private val callback: ResultReceiver) : TermSession.FinishCallback {
+        override fun onSessionFinish(session: TermSession) {
+            result.cancel()
+            callback.send(0, Bundle())
+            mTermSessions.remove(session)
         }
     }
 }
+

@@ -14,198 +14,195 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import android.os.Handler;
-import android.os.Message;
-import android.os.ParcelFileDescriptor;
-import android.util.Log;
-
-import jackpal.androidterm.util.TermSettings;
-
-import java.io.*;
-import java.util.ArrayList;
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
+import android.os.ParcelFileDescriptor
+import android.util.Log
+import jackpal.androidterm.util.TermSettings
+import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
 
 /**
  * A terminal session, controlling the process attached to the session (usually
- * a shell). It keeps track of process PID and destroys it's process group
+ * a shell). It keeps track of process PID and destroys its process group
  * upon stopping.
  */
-public class ShellTermSession extends GenericTermSession {
-    private int mProcId;
-    private Thread mWatcherThread;
+class ShellTermSession(
+    settings: TermSettings,
+    private val mInitialCommand: String?
+) : GenericTermSession(
+    ParcelFileDescriptor.open(File("/dev/ptmx"), ParcelFileDescriptor.MODE_READ_WRITE),
+    settings,
+    false
+) {
+    private var mProcId: Int = 0
+    private var mWatcherThread: Thread
 
-    private String mInitialCommand;
-
-    private static final int PROCESS_EXITED = 1;
-    private Handler mMsgHandler = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-            if (!isRunning()) {
-                return;
-            }
+    private val PROCESS_EXITED = 1
+    private val mMsgHandler = object : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            if (!isRunning) return
             if (msg.what == PROCESS_EXITED) {
-                onProcessExit((Integer) msg.obj);
+                onProcessExit(msg.obj as Int)
             }
         }
-    };
-
-    public ShellTermSession(TermSettings settings, String initialCommand) throws IOException {
-        super(ParcelFileDescriptor.open(new File("/dev/ptmx"), ParcelFileDescriptor.MODE_READ_WRITE),
-                settings, false);
-
-        initializeSession();
-
-        setTermOut(new ParcelFileDescriptor.AutoCloseOutputStream(mTermFd));
-        setTermIn(new ParcelFileDescriptor.AutoCloseInputStream(mTermFd));
-
-        mInitialCommand = initialCommand;
-
-        mWatcherThread = new Thread(() -> {
-            Log.i(TermDebug.LOG_TAG, "waiting for: " + mProcId);
-            int result = TermExec.waitFor(mProcId);
-            Log.i(TermDebug.LOG_TAG, "Subprocess exited: " + result);
-            mMsgHandler.sendMessage(mMsgHandler.obtainMessage(PROCESS_EXITED, result));
-        });
-        mWatcherThread.setName("Process watcher");
     }
 
-    private void initializeSession() throws IOException {
-        TermSettings settings = mSettings;
+    init {
+        initializeSession()
+        termOut = ParcelFileDescriptor.AutoCloseOutputStream(mTermFd)
+        termIn = ParcelFileDescriptor.AutoCloseInputStream(mTermFd)
 
-        String path = System.getenv("PATH");
+        mWatcherThread = Thread {
+            Log.i(TermDebug.LOG_TAG, "waiting for: $mProcId")
+            val result = TermExec.waitFor(mProcId)
+            Log.i(TermDebug.LOG_TAG, "Subprocess exited: $result")
+            mMsgHandler.sendMessage(mMsgHandler.obtainMessage(PROCESS_EXITED, result))
+        }
+        mWatcherThread.name = "Process watcher"
+    }
+
+    @Throws(IOException::class)
+    private fun initializeSession() {
+        val settings = mSettings
+        var path = System.getenv("PATH") ?: ""
         if (settings.doPathExtensions()) {
-            String appendPath = settings.getAppendPath();
-            if (appendPath != null && !appendPath.isEmpty()) {
-                path = path + ":" + appendPath;
+            val appendPath = settings.appendPath
+            if (!appendPath.isNullOrEmpty()) {
+                path = "$path:$appendPath"
             }
-
             if (settings.allowPathPrepend()) {
-                String prependPath = settings.getPrependPath();
-                if (prependPath != null && !prependPath.isEmpty()) {
-                    path = prependPath + ":" + path;
+                val prependPath = settings.prependPath
+                if (!prependPath.isNullOrEmpty()) {
+                    path = "$prependPath:$path"
                 }
             }
         }
         if (settings.verifyPath()) {
-            path = checkPath(path);
+            path = checkPath(path)
         }
-        String[] env = new String[3];
-        env[0] = "TERM=" + settings.getTermType();
-        env[1] = "PATH=" + path;
-        env[2] = "HOME=" + settings.getHomePath();
-
-        mProcId = createSubprocess(settings.getShell(), env);
+        val env = arrayOf(
+            "TERM=" + settings.termType,
+            "PATH=$path",
+            "HOME=" + settings.homePath
+        )
+        mProcId = createSubprocess(settings.shell, env)
     }
 
-    private String checkPath(String path) {
-        String[] dirs = path.split(":");
-        StringBuilder checkedPath = new StringBuilder(path.length());
-        for (String dirname : dirs) {
-            File dir = new File(dirname);
-            if (dir.isDirectory() && dir.canExecute()) {
-                checkedPath.append(dirname);
-                checkedPath.append(":");
+    private fun checkPath(path: String): String {
+        val dirs = path.split(":")
+        val checkedPath = StringBuilder(path.length)
+        for (dirname in dirs) {
+            val dir = File(dirname)
+            if (dir.isDirectory && dir.canExecute()) {
+                checkedPath.append(dirname)
+                checkedPath.append(":")
             }
         }
-        return checkedPath.substring(0, checkedPath.length()-1);
+        return if (checkedPath.isNotEmpty()) checkedPath.substring(0, checkedPath.length - 1) else ""
     }
 
-    @Override
-    public void initializeEmulator(int columns, int rows) {
-        super.initializeEmulator(columns, rows);
-
-        mWatcherThread.start();
-        sendInitialCommand(mInitialCommand);
+    override fun initializeEmulator(columns: Int, rows: Int) {
+        super.initializeEmulator(columns, rows)
+        mWatcherThread.start()
+        sendInitialCommand(mInitialCommand)
     }
 
-    private void sendInitialCommand(String initialCommand) {
-        if (!initialCommand.isEmpty()) {
-            write(initialCommand + '\r');
+    private fun sendInitialCommand(initialCommand: String?) {
+        if (!initialCommand.isNullOrEmpty()) {
+            write(initialCommand + '\r')
         }
     }
 
-    private int createSubprocess(String shell, String[] env) throws IOException {
-        ArrayList<String> argList = parse(shell);
-        String arg0;
-        String[] args;
-
+    @Throws(IOException::class)
+    private fun createSubprocess(shell: String, env: Array<String>): Int {
+        var argList = parse(shell)
+        var arg0: String
+        var args: Array<String>
         try {
-            arg0 = argList.get(0);
-            File file = new File(arg0);
+            arg0 = argList[0]
+            val file = File(arg0)
             if (!file.exists()) {
-                Log.e(TermDebug.LOG_TAG, "Shell " + arg0 + " not found!");
-                throw new FileNotFoundException(arg0);
+                Log.e(TermDebug.LOG_TAG, "Shell $arg0 not found!")
+                throw FileNotFoundException(arg0)
             } else if (!file.canExecute()) {
-                Log.e(TermDebug.LOG_TAG, "Shell " + arg0 + " not executable!");
-                throw new FileNotFoundException(arg0);
+                Log.e(TermDebug.LOG_TAG, "Shell $arg0 not executable!")
+                throw FileNotFoundException(arg0)
             }
-            args = argList.toArray(new String[1]);
-        } catch (Exception e) {
-            argList = parse(mSettings.getFailsafeShell());
-            arg0 = argList.get(0);
-            args = argList.toArray(new String[1]);
+            args = argList.toTypedArray()
+        } catch (_: Exception) {
+            argList = parse(mSettings.failsafeShell)
+            arg0 = argList[0]
+            args = argList.toTypedArray()
         }
-
-        return TermExec.createSubprocess(mTermFd, arg0, args, env);
+        return TermExec.createSubprocess(mTermFd, arg0, args, env)
     }
 
-    private ArrayList<String> parse(String cmd) {
-        final int PLAIN = 0;
-        final int WHITESPACE = 1;
-        final int INQUOTE = 2;
-        int state = WHITESPACE;
-        ArrayList<String> result = new ArrayList<>();
-        int cmdLen = cmd.length();
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < cmdLen; i++) {
-            char c = cmd.charAt(i);
-            if (state == PLAIN) {
-                if (Character.isWhitespace(c)) {
-                    result.add(builder.toString());
-                    builder.delete(0,builder.length());
-                    state = WHITESPACE;
-                } else if (c == '"') {
-                    state = INQUOTE;
-                } else {
-                    builder.append(c);
-                }
-            } else if (state == WHITESPACE) {
-                if (Character.isWhitespace(c)) {
-                    // do nothing
-                } else if (c == '"') {
-                    state = INQUOTE;
-                } else {
-                    state = PLAIN;
-                    builder.append(c);
-                }
-            } else {
-                if (c == '\\') {
-                    if (i + 1 < cmdLen) {
-                        i += 1;
-                        builder.append(cmd.charAt(i));
+    private fun parse(cmd: String): ArrayList<String> {
+        val PLAIN = 0
+        val WHITESPACE = 1
+        val INQUOTE = 2
+        var state = WHITESPACE
+        val result = ArrayList<String>()
+        val cmdLen = cmd.length
+        val builder = StringBuilder()
+        var i = 0
+        while (i < cmdLen) {
+            val c = cmd[i]
+            when (state) {
+                PLAIN -> {
+                    if (c.isWhitespace()) {
+                        result.add(builder.toString())
+                        builder.clear()
+                        state = WHITESPACE
+                    } else if (c == '"') {
+                        state = INQUOTE
+                    } else {
+                        builder.append(c)
                     }
-                } else if (c == '"') {
-                    state = PLAIN;
-                } else {
-                    builder.append(c);
+                }
+                WHITESPACE -> {
+                    if (c.isWhitespace()) {
+                        // do nothing
+                    } else if (c == '"') {
+                        state = INQUOTE
+                    } else {
+                        state = PLAIN
+                        builder.append(c)
+                    }
+                }
+                INQUOTE -> {
+                    if (c == '\\') {
+                        if (i + 1 < cmdLen) {
+                            i += 1
+                            builder.append(cmd[i])
+                        }
+                    } else if (c == '"') {
+                        state = PLAIN
+                    } else {
+                        builder.append(c)
+                    }
                 }
             }
+            i++
         }
-        if (builder.length() > 0) {
-            result.add(builder.toString());
+        if (builder.isNotEmpty()) {
+            result.add(builder.toString())
         }
-        return result;
+        return result
     }
 
-    private void onProcessExit(int result) {
-        onProcessExit();
+    private fun onProcessExit(result: Int) {
+        onProcessExit()
     }
 
-    @Override
-    public void finish() {
-        hangupProcessGroup();
-        super.finish();
+    override fun finish() {
+        hangupProcessGroup()
+        super.finish()
     }
 
     /**
@@ -213,7 +210,8 @@ public class ShellTermSession extends GenericTermSession {
      * and usually results in client's death, unless it's process is a daemon or have been somehow else detached
      * from the terminal (for example, by the "nohup" utility).
      */
-    void hangupProcessGroup() {
-        TermExec.sendSignal(-mProcId, 1);
+    fun hangupProcessGroup() {
+        TermExec.sendSignal(-mProcId, 1)
     }
 }
+

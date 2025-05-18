@@ -18,12 +18,12 @@
 -->
 
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="fill_parent"
-    android:layout_height="fill_parent"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
     android:orientation="horizontal">
     <TextView android:id="@+id/window_list_label"
-        android:layout_width="wrap_content"
-        android:layout_height="fill_parent"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
         android:layout_weight="1"
         android:padding="15dp"
         android:maxLines="1"
@@ -32,13 +32,13 @@
     <View android:id="@+id/window_list_separator"
         android:background="#ff313431"
         android:layout_width="1dp"
-        android:layout_height="fill_parent"
-        android:layout_marginLeft="8dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="8dp"
         android:layout_marginTop="5dp"
         android:layout_marginBottom="5dp" />
     <view class="jackpal.androidterm.WindowList$CloseButton" android:id="@+id/window_list_close"
         android:layout_width="wrap_content"
-        android:layout_height="fill_parent"
+        android:layout_height="match_parent"
         android:paddingLeft="15dp"
         android:paddingRight="15dp"
         android:background="@drawable/close_background"

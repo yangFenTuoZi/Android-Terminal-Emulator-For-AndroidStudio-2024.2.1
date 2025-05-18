@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import android.content.Intent;
-import android.net.Uri;
-import android.util.Log;
+import android.content.Intent
 
 /*
  * New procedure for launching a command in ATE.
@@ -27,61 +25,53 @@ import android.util.Log;
  *
  * The old procedure of using Intent.Extra is still available but is discouraged.
  */
-public final class RunScript extends RemoteInterface {
-    private static final String ACTION_RUN_SCRIPT = "jackpal.androidterm.RUN_SCRIPT";
+class RunScript : RemoteInterface() {
+    companion object {
+        private const val ACTION_RUN_SCRIPT = "jackpal.androidterm.RUN_SCRIPT"
+        private const val EXTRA_WINDOW_HANDLE = "jackpal.androidterm.window_handle"
+        private const val EXTRA_INITIAL_COMMAND = "jackpal.androidterm.iInitialCommand"
+    }
 
-    private static final String EXTRA_WINDOW_HANDLE = "jackpal.androidterm.window_handle";
-    private static final String EXTRA_INITIAL_COMMAND = "jackpal.androidterm.iInitialCommand";
-
-    @Override
-    protected void handleIntent() {
-        TermService service = getTermService();
+    override fun handleIntent() {
+        val service = termService
         if (service == null) {
-            finish();
-            return;
+            finish()
+            return
         }
 
-        Intent myIntent = getIntent();
-        String action = myIntent.getAction();
-        if (action.equals(ACTION_RUN_SCRIPT)) {
-            /* Someone with the appropriate permissions has asked us to
-               run a script */
-            String handle = myIntent.getStringExtra(EXTRA_WINDOW_HANDLE);
-            String command=null;
-            /*
-             * First look in Intent.data for the path; if not there, revert to
-             * the EXTRA_INITIAL_COMMAND location.
-             */
-            Uri uri=myIntent.getData();
-            if(uri!=null) // scheme[path][arguments]
-            {
-              String s=uri.getScheme();
-              if(s!=null && s.toLowerCase().equals("file"))
-              {
-                command=uri.getPath();
-                // Allow for the command to be contained within the arguments string.
-                if(command==null) command="";
-                if(!command.equals("")) command=quoteForBash(command);
-                // Append any arguments.
-                if(null!=(s=uri.getFragment())) command+=" "+s;
-              }
+        val myIntent = intent
+        val action = myIntent.action
+        if (action == ACTION_RUN_SCRIPT) {
+            // 有权限的调用者请求我们运行脚本
+            var handle = myIntent.getStringExtra(EXTRA_WINDOW_HANDLE)
+            var command: String? = null
+            // 先从 Intent.data 取 path，如果没有则回退到 EXTRA_INITIAL_COMMAND
+            val uri = myIntent.data
+            if (uri != null) {
+                val s = uri.scheme
+                if (s != null && s.equals("file", ignoreCase = true)) {
+                    command = uri.path
+                    if (command == null) command = ""
+                    if (command.isNotEmpty()) command = quoteForBash(command)
+                    // 拼接参数
+                    val frag = uri.fragment
+                    if (frag != null) command += " $frag"
+                }
             }
-            // If Intent.data not used then fall back to old method.
-            if(command==null) command=myIntent.getStringExtra(EXTRA_INITIAL_COMMAND);
-            if (handle != null) {
-                // Target the request at an existing window if open
-                handle = appendToWindow(handle, command);
+            // 如果 Intent.data 没有用，则回退到旧方法
+            if (command == null) command = myIntent.getStringExtra(EXTRA_INITIAL_COMMAND)
+            handle = if (handle != null) {
+                appendToWindow(handle, command)
             } else {
-                // Open a new window
-                handle = openNewWindow(command);
+                openNewWindow(command)
             }
-            Intent result = new Intent();
-            result.putExtra(EXTRA_WINDOW_HANDLE, handle);
-            setResult(RESULT_OK, result);
-
-            finish();
+            val result = Intent()
+            result.putExtra(EXTRA_WINDOW_HANDLE, handle)
+            setResult(RESULT_OK, result)
+            finish()
         } else {
-            super.handleIntent();
+            super.handleIntent()
         }
     }
 }
+

@@ -14,203 +14,172 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import java.io.File;
-import java.io.IOException;
-import java.util.UUID;
+import android.content.ComponentName
+import android.content.Intent
+import android.content.ServiceConnection
+import android.net.Uri
+import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.PreferenceManager
+import jackpal.androidterm.util.TermSettings
+import java.io.File
+import java.io.IOException
+import java.util.UUID
 
-import android.app.Activity;
-import android.content.ComponentName;
-import android.content.Intent;
-import android.content.ServiceConnection;
-import android.content.SharedPreferences;
-import android.net.Uri;
-import android.os.Bundle;
-import android.os.IBinder;
-import android.preference.PreferenceManager;
-import android.util.Log;
+open class RemoteInterface : AppCompatActivity() {
 
-import jackpal.androidterm.emulatorview.TermSession;
-
-import jackpal.androidterm.util.SessionList;
-import jackpal.androidterm.util.TermSettings;
-
-public class RemoteInterface extends Activity {
-    protected static final String PRIVACT_OPEN_NEW_WINDOW = "jackpal.androidterm.private.OPEN_NEW_WINDOW";
-    protected static final String PRIVACT_SWITCH_WINDOW = "jackpal.androidterm.private.SWITCH_WINDOW";
-
-    protected static final String PRIVEXTRA_TARGET_WINDOW = "jackpal.androidterm.private.target_window";
-
-    protected static final String PRIVACT_ACTIVITY_ALIAS = "jackpal.androidterm.TermInternal";
-
-    private TermSettings mSettings;
-
-    private TermService mTermService;
-    private Intent mTSIntent;
-    private ServiceConnection mTSConnection = new ServiceConnection() {
-        public void onServiceConnected(ComponentName className, IBinder service) {
-            TermService.TSBinder binder = (TermService.TSBinder) service;
-            mTermService = binder.getService();
-            handleIntent();
+    private lateinit var mSettings: TermSettings
+    private var mTermService: TermService? = null
+    private var mTSIntent: Intent? = null
+    private var mTSConnection: ServiceConnection? = object : ServiceConnection {
+        override fun onServiceConnected(className: ComponentName, service: IBinder) {
+            val binder = service as TermService.TSBinder
+            mTermService = binder.service
+            handleIntent()
         }
-
-        public void onServiceDisconnected(ComponentName className) {
-            mTermService = null;
-        }
-    };
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        mSettings = new TermSettings(getResources(), prefs);
-
-        Intent TSIntent = new Intent(this, TermService.class);
-        mTSIntent = TSIntent;
-        startService(TSIntent);
-        if (!bindService(TSIntent, mTSConnection, BIND_AUTO_CREATE)) {
-            Log.e(TermDebug.LOG_TAG, "bind to service failed!");
-            finish();
+        override fun onServiceDisconnected(className: ComponentName) {
+            mTermService = null
         }
     }
 
-    @Override
-    public void finish() {
-        ServiceConnection conn = mTSConnection;
-        if (conn != null) {
-            unbindService(conn);
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        mSettings = TermSettings(resources, prefs)
+        val tsIntent = Intent(this, TermService::class.java)
+        mTSIntent = tsIntent
+        startService(tsIntent)
+        if (!bindService(tsIntent, mTSConnection!!, BIND_AUTO_CREATE)) {
+            Log.e(TermDebug.LOG_TAG, "bind to service failed!")
+            finish()
+        }
+    }
 
-            // Stop the service if no terminal sessions are running
-            TermService service = mTermService;
+    override fun finish() {
+        val conn = mTSConnection
+        if (conn != null) {
+            unbindService(conn)
+            val service = mTermService
             if (service != null) {
-                SessionList sessions = service.getSessions();
-                if (sessions == null || sessions.size() == 0) {
-                    stopService(mTSIntent);
+                val sessions = service.sessions
+                if (sessions.isEmpty()) {
+                    stopService(mTSIntent)
                 }
             }
-
-            mTSConnection = null;
-            mTermService = null;
+            mTSConnection = null
+            mTermService = null
         }
-        super.finish();
+        super.finish()
     }
 
-    protected TermService getTermService() {
-        return mTermService;
-    }
+    protected val termService: TermService?
+        get() = mTermService
 
-    protected void handleIntent() {
-        TermService service = getTermService();
+    protected open fun handleIntent() {
+        val service = termService
         if (service == null) {
-            finish();
-            return;
+            finish()
+            return
         }
-
-        Intent myIntent = getIntent();
-        String action = myIntent.getAction();
-        if (action.equals(Intent.ACTION_SEND)
-                && myIntent.hasExtra(Intent.EXTRA_STREAM)) {
-          /* "permission.RUN_SCRIPT" not required as this is merely opening a new window. */
-            Object extraStream = myIntent.getExtras().get(Intent.EXTRA_STREAM);
-            if (extraStream instanceof Uri) {
-                String path = ((Uri) extraStream).getPath();
-                File file = new File(path);
-                String dirPath = file.isDirectory() ? path : file.getParent();
-                openNewWindow("cd " + quoteForBash(dirPath));
+        val myIntent = intent
+        val action = myIntent.action
+        if (action == Intent.ACTION_SEND && myIntent.hasExtra(Intent.EXTRA_STREAM)) {
+            val extraStream = myIntent.extras?.get(Intent.EXTRA_STREAM)
+            if (extraStream is Uri) {
+                val path = extraStream.path
+                val file = File(path)
+                val dirPath = if (file.isDirectory) path else file.parent
+                openNewWindow("cd " + dirPath?.let { quoteForBash(it) })
             }
         } else {
-            // Intent sender may not have permissions, ignore any extras
-            openNewWindow(null);
+            openNewWindow(null)
         }
-
-        finish();
+        finish()
     }
 
-    /**
-     *  Quote a string so it can be used as a parameter in bash and similar shells.
-     */
-    public static String quoteForBash(String s) {
-        StringBuilder builder = new StringBuilder();
-        String specialChars = "\"\\$`!";
-        builder.append('"');
-        int length = s.length();
-        for (int i = 0; i < length; i++) {
-            char c = s.charAt(i);
-            if (specialChars.indexOf(c) >= 0) {
-                builder.append('\\');
+    companion object {
+        const val PRIVACT_OPEN_NEW_WINDOW = "jackpal.androidterm.private.OPEN_NEW_WINDOW"
+        const val PRIVACT_SWITCH_WINDOW = "jackpal.androidterm.private.SWITCH_WINDOW"
+        const val PRIVEXTRA_TARGET_WINDOW = "jackpal.androidterm.private.target_window"
+        const val PRIVACT_ACTIVITY_ALIAS = "jackpal.androidterm.TermInternal"
+        /**
+         *  Quote a string so it can be used as a parameter in bash and similar shells.
+         */
+        @JvmStatic
+        fun quoteForBash(s: String): String {
+            val builder = StringBuilder()
+            val specialChars = "\"\\$`!"
+            builder.append('"')
+            for (c in s) {
+                if (specialChars.indexOf(c) >= 0) {
+                    builder.append('\\')
+                }
+                builder.append(c)
             }
-            builder.append(c);
+            builder.append('"')
+            return builder.toString()
         }
-        builder.append('"');
-        return builder.toString();
     }
 
-    protected String openNewWindow(String iInitialCommand) {
-        TermService service = getTermService();
-
-        String initialCommand = mSettings.getInitialCommand();
+    protected fun openNewWindow(iInitialCommand: String?): String? {
+        val service = termService
+        var initialCommand = mSettings.initialCommand
         if (iInitialCommand != null) {
-            if (initialCommand != null) {
-                initialCommand += "\r" + iInitialCommand;
+            initialCommand = if (initialCommand != null) {
+                "$initialCommand\r$iInitialCommand"
             } else {
-                initialCommand = iInitialCommand;
+                iInitialCommand
             }
         }
-
-        try {
-            TermSession session = Term.createTermSession(this, mSettings, initialCommand);
-
-            session.setFinishCallback(service);
-            service.getSessions().add(session);
-
-            String handle = UUID.randomUUID().toString();
-            ((GenericTermSession) session).setHandle(handle);
-
-            Intent intent = new Intent(PRIVACT_OPEN_NEW_WINDOW);
-            intent.addCategory(Intent.CATEGORY_DEFAULT);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-
-            return handle;
-        } catch (IOException e) {
-            return null;
+        return try {
+            val session = Term.createTermSession(this, mSettings, initialCommand)
+            session.setFinishCallback(service)
+            service?.sessions?.add(session)
+            val handle = UUID.randomUUID().toString()
+            (session as GenericTermSession).handle = handle
+            val intent = Intent(PRIVACT_OPEN_NEW_WINDOW)
+            intent.addCategory(Intent.CATEGORY_DEFAULT)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            handle
+        } catch (_: IOException) {
+            null
         }
     }
 
-    protected String appendToWindow(String handle, String iInitialCommand) {
-        TermService service = getTermService();
-
-        // Find the target window
-        SessionList sessions = service.getSessions();
-        GenericTermSession target = null;
-        int index;
-        for (index = 0; index < sessions.size(); ++index) {
-            GenericTermSession session = (GenericTermSession) sessions.get(index);
-            String h = session.getHandle();
-            if (h != null && h.equals(handle)) {
-                target = session;
-                break;
+    protected fun appendToWindow(handle: String, iInitialCommand: String?): String? {
+        val service = termService
+        val sessions = service?.sessions
+        var target: GenericTermSession? = null
+        var index = 0
+        if (sessions != null) {
+            for (i in 0 until sessions.size) {
+                val session = sessions[i] as GenericTermSession
+                val h = session.handle
+                if (h != null && h == handle) {
+                    target = session
+                    index = i
+                    break
+                }
             }
         }
-
         if (target == null) {
-            // Target window not found, open a new one
-            return openNewWindow(iInitialCommand);
+            return openNewWindow(iInitialCommand)
         }
-
         if (iInitialCommand != null) {
-            target.write(iInitialCommand);
-            target.write('\r');
+            target.write(iInitialCommand)
+            target.write("\r")
         }
-
-        Intent intent = new Intent(PRIVACT_SWITCH_WINDOW);
-        intent.addCategory(Intent.CATEGORY_DEFAULT);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.putExtra(PRIVEXTRA_TARGET_WINDOW, index);
-        startActivity(intent);
-
-        return handle;
+        val intent = Intent(PRIVACT_SWITCH_WINDOW)
+        intent.addCategory(Intent.CATEGORY_DEFAULT)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent.putExtra(PRIVEXTRA_TARGET_WINDOW, index)
+        startActivity(intent)
+        return handle
     }
 }
+

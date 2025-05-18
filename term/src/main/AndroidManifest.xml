@@ -27,7 +27,7 @@
         android:hardwareAccelerated="true"
         android:icon="@drawable/ic_launcher"
         android:label="@string/application_terminal"
-        android:theme="@style/Theme">
+        android:theme="@style/AppTheme">
         <activity
             android:name="Term"
             android:configChanges="keyboard|keyboardHidden|orientation"

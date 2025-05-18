@@ -52,7 +52,7 @@ static __inline__ int my_tcgetattr(int fd, struct termios *s)
     return ioctl(fd, TCGETS, s);
 }
 
-static __inline__ int my_tcsetattr(int fd, const struct terkillProcmios *s)
+static __inline__ int my_tcsetattr(int fd, const struct termios *s)
 {
     return ioctl(fd, TCSETS, (void *)s);
 }

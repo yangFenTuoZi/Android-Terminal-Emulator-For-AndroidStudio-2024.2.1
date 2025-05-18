@@ -1,539 +1,438 @@
-//From the desk of Frank P. Westlake; public domain.
-package jackpal.androidterm.shortcuts;
+package jackpal.androidterm.shortcuts
 
-import android.content.             Intent;
-import android.content.             SharedPreferences;
-import android.graphics.            Typeface;
-import android.net.                 Uri;
-import android.os.                  Environment;
-import android.preference.          PreferenceManager;
-import android.view.                Gravity;
-import android.view.                KeyEvent;
-import android.view.                Menu;
-import android.view.                MenuItem;
-import android.view.                View;
-import android.widget.              EditText;
-import android.widget.              HorizontalScrollView;
-import android.widget.              ImageView;
-import android.widget.              LinearLayout;
-import android.widget.              ScrollView;
-import android.widget.              TextView;
-import android.widget.              Toast;
-import java.io.                     File;
-import java.io.                     IOException;
-import java.util.                   HashMap;
-import jackpal.androidterm.         R;
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.graphics.Typeface
+import android.net.Uri
+import android.os.Bundle
+import android.os.Environment
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.widget.EditText
+import android.widget.HorizontalScrollView
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.edit
+import androidx.preference.PreferenceManager
+import jackpal.androidterm.R
+import java.io.File
+import java.io.IOException
+import java.util.Arrays
+import java.util.Locale
+import kotlin.Boolean
+import kotlin.Comparator
+import kotlin.Int
+import kotlin.String
+import kotlin.also
+import kotlin.isInitialized
+import kotlin.let
 
-public class      FSNavigator
-       extends    android.app.Activity
-{
-  private final int                      ACTION_THEME_SWAP=           0x00000100;
-  private final int                      BUTTON_SIZE=                 150;
-  private android.content.Context        context=                     this;
-  private float                          textLg=                      24;
-  private int                            theme=                       android.R.style.Theme;
-  private SharedPreferences              SP;
-  private File                           cd;
-  private File                           extSdCardFile;
-  private String                         extSdCard;
-  private HashMap<Integer, LinearLayout> cachedFileView;
-  private HashMap<Integer, LinearLayout> cachedDirectoryView;
-  private HashMap<Integer, TextView>     cachedDividerView;
-  private int                            countFileView;
-  private int                            countDirectoryView;
-  private int                            countDividerView;
-  private LinearLayout                   contentView;
-  private LinearLayout                   titleView;
-  private LinearLayout                   pathEntryView;
+class FSNavigator : AppCompatActivity() {
+    private val ACTION_THEME_SWAP = 0x00000100
+    private val BUTTON_SIZE = 150
+    private val context: Context = this
+    private val textLg = 24f
+    private var theme = android.R.style.Theme
+    private lateinit var SP: SharedPreferences
+    private lateinit var cd: File
+    private lateinit var extSdCardFile: File
+    private lateinit var extSdCard: String
+    private lateinit var cachedFileView: HashMap<Int, LinearLayout>
+    private lateinit var cachedDirectoryView: HashMap<Int, LinearLayout>
+    private lateinit var cachedDividerView: HashMap<Int, TextView>
+    private var countFileView = 0
+    private var countDirectoryView = 0
+    private var countDividerView = 0
+    private lateinit var contentView: LinearLayout
+    private lateinit var titleView: LinearLayout
+    private lateinit var pathEntryView: LinearLayout
 
-  ////////////////////////////////////////////////////////////
-  public void onCreate(android.os.Bundle savedInstanceState)
-  {
-    super.onCreate(savedInstanceState);
-    setTitle(getString(R.string.fsnavigator_title));//"File Selector");
-    SP=PreferenceManager.getDefaultSharedPreferences(context);
-    theme=SP.getInt("theme", theme);
-    setTheme(theme);
-    getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setTitle(getString(R.string.fsnavigator_title))
+        SP = PreferenceManager.getDefaultSharedPreferences(context)
+        theme = SP.getInt("theme", theme)
+        setTheme(theme)
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
 
-    Intent intent= getIntent();
-    extSdCardFile=Environment.getExternalStorageDirectory();
-    extSdCard=getCanonicalPath(extSdCardFile);
-    Uri    uri=intent.getData();
-    String path=uri==null?null:uri.getPath();
-    if(null == path || null==(chdir(path))) chdir(extSdCard);
-    if(intent.hasExtra("title"))           setTitle(intent.getStringExtra("title"));
+        val intent = intent
+        extSdCardFile = Environment.getExternalStorageDirectory()
+        extSdCard = getCanonicalPath(extSdCardFile)
+        val uri = intent.data
+        val path = uri?.path
+        if (path == null) chdir(extSdCard)
+        if (intent.hasExtra("title")) setTitle(intent.getStringExtra("title"))
 
-    titleView=           directoryEntry("..");
-    pathEntryView=       fileEntry(null);
-    contentView=         makeContentView();
-    cachedDirectoryView= new HashMap<Integer, LinearLayout>();
-    cachedFileView=      new HashMap<Integer, LinearLayout>();
-    cachedDividerView=   new HashMap<Integer, TextView>();
-  }
-  ////////////////////////////////////////////////////////////
-  public void onPause()
-  {
-    super.onPause();
-    doPause();
-  }
-  ////////////////////////////////////////////////////////////
-  private void doPause()
-  {
-    SP.edit().putString("lastDirectory", getCanonicalPath(cd)).commit();
-  }
-  ////////////////////////////////////////////////////////////
-  public void onResume()
-  {
-    super.onResume();
-    doResume();
-  }
-  ////////////////////////////////////////////////////////////
-  private void doResume()
-  {
-    makeView();
-  }
-  ////////////////////////////////////////////////////////////
-  private void swapTheme()
-  {
-    switch(theme)
-    {
-      case android.R.style.Theme:       theme=android.R.style.Theme_Light; break;
-      case android.R.style.Theme_Light: theme=android.R.style.Theme;       break;
-      default: return;
+        titleView = directoryEntry("..")
+        pathEntryView = fileEntry(null)
+        contentView = makeContentView()
+        cachedDirectoryView = HashMap()
+        cachedFileView = HashMap()
+        cachedDividerView = HashMap()
     }
-    SP.edit().putInt("theme", theme).commit();
-    startActivityForResult(getIntent().addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT), -1);
-    finish();
-  }
-  ////////////////////////////////////////////////////////////
-  private String ifAvailable(String goTo)
-  {
-    if(goTo.startsWith(extSdCard))
-    {
-      String s=Environment.getExternalStorageState();
-      if(s.equals(Environment.MEDIA_MOUNTED)
-      || s.equals(Environment.MEDIA_MOUNTED_READ_ONLY)
-      )
-      {
-        return(goTo);
-      }
-      toast(getString(R.string.fsnavigator_no_external_storage), 1);//"External storage not available", 1);
-      return(extSdCard);
+
+    override fun onPause() {
+        super.onPause()
+        doPause()
     }
-    return(goTo);
-  }
-  ////////////////////////////////////////////////////////////
-  private File chdir(File file)
-  {
-    String path=ifAvailable(getCanonicalPath(file));
-    System.setProperty("user.dir", path);
-    return(cd=new File(path));
-  }
-  private File chdir(String path)
-  {
-    return(chdir(new File(path)));
-  }
-  ////////////////////////////////////////////////////////////
-  private TextView entryDividerH()
-  {
-    TextView tv;
-    if(countDividerView<cachedDividerView.size())
-    {
-      tv=cachedDividerView.get(countDividerView);
+
+    private fun doPause() {
+        SP.edit(commit = true) { putString("lastDirectory", getCanonicalPath(cd)) }
     }
-    else
-    {
-      tv=new TextView(context);
-      tv.setLayoutParams(
-        new LinearLayout.LayoutParams(
-          LinearLayout.LayoutParams.FILL_PARENT
-        , 1
-        , 1
-        )
-      );
-      cachedDividerView.put(countDividerView, tv);
+
+    override fun onResume() {
+        super.onResume()
+        doResume()
     }
-    ++countDividerView;
-    return(tv);
-  }
-  ////////////////////////////////////////////////////////////
-  View.OnClickListener fileListener=new View.OnClickListener()
-  {
-    public void onClick(View view)
-    {
-      String path=(String)view.getTag();
-      if(path!=null)
-      {
-        setResult(RESULT_OK, getIntent().setData(Uri.fromFile(new File(cd, path))));
-        finish();
-      }
+
+    private fun doResume() {
+        makeView()
     }
-  };
-  ////////////////////////////////////////////////////////////
-  private LinearLayout fileView(boolean entryWindow)
-  {
-    LinearLayout  ll=new LinearLayout(context);
-                  ll.setLayoutParams(
-                    new LinearLayout.LayoutParams(
-                      LinearLayout.LayoutParams.FILL_PARENT
-                    , LinearLayout.LayoutParams.WRAP_CONTENT
-                    , 1
-                    )
-                  );
-                  ll.setOrientation(LinearLayout.HORIZONTAL);
-                  ll.setGravity(android.view.Gravity.FILL);
-    final TextView tv;
-    if(entryWindow)
-    {
-      tv=new EditText(context);
-      tv.setHint(getString(R.string.fsnavigator_optional_enter_path));
-      tv.setLayoutParams(
-        new LinearLayout.LayoutParams(
-          LinearLayout.LayoutParams.FILL_PARENT
-        , LinearLayout.LayoutParams.FILL_PARENT
-        , 2
-        )
-      );
-      tv.setOnKeyListener(
-        new EditText.OnKeyListener()
-        {
-          public boolean onKey(View v, int keyCode, KeyEvent event)
-          {
-            if(keyCode==KeyEvent.KEYCODE_ENTER)
-            {
-              String path=tv.getText().toString();
-              File file=new File(getCanonicalPath(path));
-              chdir(file.getParentFile()==null?file:file.getParentFile());
-              if(file.isFile())
-              {
-                setResult(RESULT_OK, getIntent().setData(Uri.fromFile(file)));
-                finish();
-              }
-              else
-              {
-                chdir(file);
-                makeView();
-              }
-              return(true);
+
+    private fun swapTheme() {
+        theme = when (theme) {
+            android.R.style.Theme -> android.R.style.Theme_Light
+            android.R.style.Theme_Light -> android.R.style.Theme
+            else -> return
+        }
+        SP.edit(commit = true) { putInt("theme", theme) }
+        startActivityForResult(intent.addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT), -1)
+        finish()
+    }
+
+    private fun ifAvailable(goTo: String): String {
+        return if (goTo.startsWith(extSdCard)) {
+            val s = Environment.getExternalStorageState()
+            if (s == Environment.MEDIA_MOUNTED || s == Environment.MEDIA_MOUNTED_READ_ONLY) {
+                goTo
+            } else {
+                toast(getString(R.string.fsnavigator_no_external_storage), 1)
+                extSdCard
             }
-            return(false);
-          }
-        }
-      );
-      ll.addView(tv);
+        } else goTo
     }
-    else
-    {
-      tv=new TextView(context);
-      tv.setClickable(true);
-      tv.setLongClickable(true);
-      tv.setOnClickListener(fileListener);
-      tv.setLayoutParams(
-        new LinearLayout.LayoutParams(
-          LinearLayout.LayoutParams.FILL_PARENT
-        , LinearLayout.LayoutParams.FILL_PARENT
-        , 1
-        )
-      );
-      HorizontalScrollView hv=new HorizontalScrollView(context);
-      hv.setFillViewport(true);
-      hv.setLayoutParams(
-        new LinearLayout.LayoutParams(
-          LinearLayout.LayoutParams.FILL_PARENT
-        , BUTTON_SIZE
-        , 7
-        )
-      );
-      hv.addView(tv);
-      ll.addView(hv);
-    }
-    tv.setFocusable(true);
-    tv.setSingleLine();
-    tv.setTextSize(textLg);
-    tv.setTypeface(Typeface.SERIF, Typeface.BOLD);
-    tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
-    tv.setPadding(10, 5, 10, 5);
-    tv.setId(R.id.textview);//1);
 
-    return(ll);
-  }
-  ////////////////////////////////////////////////////////////
-  private LinearLayout fileEntry(final String entry)
-  {
-    LinearLayout ll;
-    if(entry==null)                           ll=fileView(entry==null);
-    else
-    {
-      if(countFileView<cachedFileView.size()) ll=cachedFileView.get(countFileView);
-      else                                    cachedFileView.put(countFileView, ll=fileView(entry==null));
-      ++countFileView;
+    private fun chdir(file: File): File {
+        val path = ifAvailable(getCanonicalPath(file))
+        System.setProperty("user.dir", path)
+        cd = File(path)
+        return cd
     }
-    TextView     tv=(TextView)ll.findViewById(R.id.textview);
-                 tv.setText(entry==null?"":entry);
-                 tv.setTag(entry==null?"":entry);
-    return(ll);
-  }
-  ////////////////////////////////////////////////////////////
-  private ImageView imageViewFolder(boolean up)
-  {
-    ImageView b1=new ImageView(context);
-              b1.setClickable(true);
-              b1.setFocusable(true);
-              b1.setId(R.id.imageview);
-              b1.setLayoutParams(
-                new LinearLayout.LayoutParams(
-                  120
-                , 120
-                , 1
+
+    private fun chdir(path: String): File = chdir(File(path))
+
+    private fun entryDividerH(): TextView {
+        val tv = if (countDividerView < cachedDividerView.size) {
+            cachedDividerView[countDividerView]!!
+        } else {
+            TextView(context).also {
+                it.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 1, 1f
                 )
-              );
-              b1.setImageResource(up?R.drawable.ic_folderup:R.drawable.ic_folder);
-              b1.setOnClickListener(directoryListener);
-              b1.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-    return(b1);
-  }
-  ////////////////////////////////////////////////////////////
-  View.OnClickListener directoryListener=new View.OnClickListener()
-  {
-    public void onClick(View view)
-    {
-      String path=(String)view.getTag();
-      if(path!=null)
-      {
-        File file=new File(path);
-        if(file.isFile())
-        {
-          setResult(RESULT_OK, getIntent().setData(Uri.fromFile(file)));
-          finish();
+                cachedDividerView[countDividerView] = it
+            }
         }
-        else chdir(file);
-        makeView();
-      }
-    }
-  };
-  ////////////////////////////////////////////////////////////
-  private LinearLayout directoryView(boolean up)
-  {
-    ImageView             b1=imageViewFolder(up);
-    TextView              tv=new TextView(context);
-    if(up)                tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);//Gravity.CENTER);
-    else                  tv.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
-                          tv.setClickable(true);
-                          tv.setLongClickable(true);
-                          tv.setFocusable(true);
-                          tv.setOnClickListener(directoryListener);
-                          tv.setMaxLines(1);
-                          tv.setTextSize(textLg);
-                          tv.setPadding(10, 5, 10, 5);
-                          tv.setId(R.id.textview);
-                          tv.setLayoutParams(
-                            new LinearLayout.LayoutParams(
-                              LinearLayout.LayoutParams.FILL_PARENT
-                            , BUTTON_SIZE
-                            , 1
-                            )
-                          );
-    HorizontalScrollView  hv=new HorizontalScrollView(context);
-                          hv.addView(tv);
-                          hv.setFillViewport(true);
-                          hv.setFocusable(true);
-                          hv.setOnClickListener(directoryListener);
-                          hv.setLayoutParams(
-                            new LinearLayout.LayoutParams(
-                              LinearLayout.LayoutParams.FILL_PARENT
-                            , BUTTON_SIZE
-                            , 7
-                            )
-                          );
-    LinearLayout          ll=new LinearLayout(context);
-                          ll.setLayoutParams(
-                            new LinearLayout.LayoutParams(
-                              LinearLayout.LayoutParams.FILL_PARENT
-                            , BUTTON_SIZE
-                            , 2
-                            )
-                          );
-                          ll.setOrientation(LinearLayout.HORIZONTAL);
-                          ll.setGravity(android.view.Gravity.FILL);
-                          ll.setOnClickListener(directoryListener);
-                          ll.addView(b1);
-                          ll.addView(hv);
-
-    return(ll);
-  }
-  ////////////////////////////////////////////////////////////
-  private LinearLayout directoryEntry(final String name)
-  {
-    boolean up=name.equals("..");
-    LinearLayout ll;
-    if(up)                                              {ll=directoryView(up);}
-    else
-    {
-      if(countDirectoryView<cachedDirectoryView.size()) {ll=                   cachedDirectoryView.get(countDirectoryView);}
-      else                                              {ll=directoryView(up); cachedDirectoryView.put(countDirectoryView, ll);}
-      ++countDirectoryView;
+        ++countDividerView
+        return tv
     }
 
-    TextView     tv=((TextView)ll.findViewById(R.id.textview));
-                 tv.setTag(name);
-                 tv.setText(up  ? "["+cd.getPath()+"]"
-                                : name
-                 );
-    ((ImageView)ll.findViewById(R.id.imageview)).setTag(name);
-    return(ll);
-  }
-  ////////////////////////////////////////////////////////////
-  public boolean onKeyUp(int keyCode, KeyEvent event)
-  {
-    if((keyCode == KeyEvent.KEYCODE_BACK)) {finish(); return(true);}
-    else return(super.onKeyUp(keyCode, event));
-  }
-  ////////////////////////////////////////////////////////////
-  private LinearLayout makeContentView()
-  {
-    final LinearLayout  ll=new LinearLayout(context);
-                        ll.setLayoutParams(
-                          new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.FILL_PARENT
-                          , LinearLayout.LayoutParams.WRAP_CONTENT
-                          , 1
-                          )
-                        );
-                        ll.setId(R.id.mainview);
-                        ll.setOrientation(LinearLayout.VERTICAL);
-                        ll.setGravity(android.view.Gravity.FILL);
-    final ScrollView    sv=new ScrollView(context);
-                        sv.setId(R.id.scrollview);
-                        sv.setLayoutParams(
-                          new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.FILL_PARENT
-                          , LinearLayout.LayoutParams.WRAP_CONTENT
-                          , 1
-                          )
-                        );
-                        sv.addView(ll);
-    final LinearLayout  bg=new LinearLayout(context);
-                        bg.setLayoutParams(
-                          new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.FILL_PARENT
-                          , LinearLayout.LayoutParams.WRAP_CONTENT
-                          , 1
-                          )
-                        );
-                        bg.setOrientation(LinearLayout.VERTICAL);
-                        bg.setGravity(android.view.Gravity.FILL);
-                        bg.setTag(ll);
-                        bg.addView(
-                          titleView
-                        , android.view.ViewGroup.LayoutParams.FILL_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-                        );
-                        bg.addView(sv);
-                        bg.addView(
-                          pathEntryView
-                        , android.view.ViewGroup.LayoutParams.FILL_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-                        );
-    return(bg);
-  }
-  ////////////////////////////////////////////////////////////
-  private void makeView()
-  {
-    countDirectoryView=countFileView=0;
-    ScrollView   sv=(ScrollView)contentView.findViewById(R.id.scrollview);
-    LinearLayout ll=(LinearLayout)sv.findViewById(R.id.mainview);
-                 ll.removeAllViews();
-    if(cd == null) chdir("/");
-    String path=getCanonicalPath(cd);
-
-    if(path.equals("")) {chdir(path="/");}
-    if(path.equals("/"))
-    {
-      titleView.setVisibility(View.GONE);
-    }
-    else
-    {
-      titleView.setVisibility(View.VISIBLE);
-      titleView.requestLayout();
-      ((TextView)titleView.findViewById(R.id.textview)).setText("["+cd.getPath()+"]");
-    }
-
-    String zd[]=cd.list(new java.io.FilenameFilter(){public boolean accept(File file, String name){return(  new File(file, name).isDirectory() );}});
-    if(zd!=null)
-    {
-      java.util.Arrays.sort(zd, 0, zd.length, stringSortComparator);
-      for(int i=0, n=zd.length; i<n; i++)
-      {
-        if(zd[i].equals("."))  continue;
-        ll.addView(directoryEntry(zd[i]));
-        ll.addView(entryDividerH());
-      }
-    }
-    String zf[]=cd.list(new java.io.FilenameFilter(){public boolean accept(File file, String name){return(!(new File(file, name).isDirectory()));}});
-    if(zf!=null)
-    {
-      java.util.Arrays.sort(zf, 0, zf.length, stringSortComparator);
-      for(int i=0, n=zf.length; i<n; i++)
-      {
-        ll.addView(fileEntry(zf[i]));
-        ll.addView(entryDividerH());
-      }
-    }
-    ((TextView)pathEntryView.findViewById(R.id.textview)).setText("");
-    sv.scrollTo(0, 0);
-//    titleView.setSelected(true);
-    setContentView(contentView);
-  }
-  //////////////////////////////////////////////////////////////////////
-  java.util.Comparator<String> stringSortComparator=new java.util.Comparator<String>()
-  {
-    public int compare(String a, String b) {return(a.toLowerCase().compareTo(b.toLowerCase()));}
-  };
-  //////////////////////////////////////////////////////////////////////
-  String getCanonicalPath(String path)
-  {
-    return(getCanonicalPath(new File(path)));
-  }
-  String getCanonicalPath(File file)
-  {
-    try{return(file.getCanonicalPath());}catch(IOException e){return(file.getPath());}
-  }
-  //////////////////////////////////////////////////////////////////////
-  public boolean onCreateOptionsMenu(Menu menu)
-//  public boolean onPrepareOptionsMenu(Menu menu)
-  {
-    super.onCreateOptionsMenu(menu);
-//    super.onPrepareOptionsMenu(menu);    menu.clear();
-    menu.add(0, ACTION_THEME_SWAP,  0,  getString(R.string.fsnavigator_change_theme));//"Change theme");
-    return(true);
-  }
-  //////////////////////////////////////////////////////////////////////
-  public boolean onOptionsItemSelected(MenuItem item)
-  {
-    super.onOptionsItemSelected(item);
-    return(doOptionsItem(item.getItemId()));
-  }
-  //////////////////////////////////////////////////////////////////////
-  private boolean doOptionsItem(int itemId)
-  {
-    switch(itemId)
-    {
-      case ACTION_THEME_SWAP: swapTheme();  return(true);
-    }
-    return(false);
-  }
-  //////////////////////////////////////////////////////////////////////
-//  private void toast(final String message){toast(message, 0);}
-  private void toast(final String message, final int duration)
-  {
-    runOnUiThread(
-      new Runnable()
-      {
-        public void run()
-        {
-          Toast.makeText(context, message, duration == 0 ?Toast.LENGTH_SHORT: Toast.LENGTH_LONG).show();
+    private val fileListener = View.OnClickListener { view ->
+        val path = view.tag as? String
+        if (path != null) {
+            setResult(RESULT_OK, intent.setData(Uri.fromFile(File(cd, path))))
+            finish()
         }
-      }
-    );
-  }
-  //////////////////////////////////////////////////////////////////////
+    }
+
+    private fun fileView(entryWindow: Boolean): LinearLayout {
+        val ll = LinearLayout(context)
+        ll.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+        ll.orientation = LinearLayout.HORIZONTAL
+        ll.gravity = Gravity.FILL
+        val tv: TextView
+        if (entryWindow) {
+            tv = EditText(context)
+            tv.hint = getString(R.string.fsnavigator_optional_enter_path)
+            tv.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                2f
+            )
+            tv.setOnKeyListener { v, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_ENTER) {
+                    val path = tv.text.toString()
+                    val file = File(getCanonicalPath(path))
+                    chdir(file.parentFile ?: file)
+                    if (file.isFile) {
+                        setResult(RESULT_OK, intent.setData(Uri.fromFile(file)))
+                        finish()
+                    } else {
+                        chdir(file)
+                        makeView()
+                    }
+                    true
+                } else false
+            }
+            ll.addView(tv)
+        } else {
+            tv = TextView(context)
+            tv.isClickable = true
+            tv.isLongClickable = true
+            tv.setOnClickListener(fileListener)
+            tv.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+            )
+            val hv = HorizontalScrollView(context)
+            hv.isFillViewport = true
+            hv.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                BUTTON_SIZE,
+                7f
+            )
+            hv.addView(tv)
+            ll.addView(hv)
+        }
+        tv.isFocusable = true
+        tv.setSingleLine()
+        tv.textSize = textLg
+        tv.setTypeface(Typeface.SERIF, Typeface.BOLD)
+        tv.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        tv.setPadding(10, 5, 10, 5)
+        tv.id = R.id.textview
+        return ll
+    }
+
+    private fun fileEntry(entry: String?): LinearLayout {
+        val ll = if (entry == null) fileView(true)
+        else if (countFileView < cachedFileView.size) cachedFileView[countFileView]!!
+        else fileView(false).also { cachedFileView[countFileView] = it }
+        ++countFileView
+        val tv = ll.findViewById<TextView>(R.id.textview)
+        tv.text = entry ?: ""
+        tv.tag = entry ?: ""
+        return ll
+    }
+
+    private fun imageViewFolder(up: Boolean): ImageView {
+        val b1 = ImageView(context)
+        b1.isClickable = true
+        b1.isFocusable = true
+        b1.id = R.id.imageview
+        b1.layoutParams = LinearLayout.LayoutParams(120, 120, 1f)
+        b1.setImageResource(if (up) R.drawable.ic_folderup else R.drawable.ic_folder)
+        b1.setOnClickListener(directoryListener)
+        b1.scaleType = ImageView.ScaleType.CENTER_INSIDE
+        return b1
+    }
+
+    private val directoryListener = View.OnClickListener { view ->
+        val path = view.tag as? String
+        if (path != null) {
+            val file = File(path)
+            if (file.isFile) {
+                setResult(RESULT_OK, intent.setData(Uri.fromFile(file)))
+                finish()
+            } else chdir(file)
+            makeView()
+        }
+    }
+
+    private fun directoryView(up: Boolean): LinearLayout {
+        val b1 = imageViewFolder(up)
+        val tv = TextView(context)
+        tv.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        tv.isClickable = true
+        tv.isLongClickable = true
+        tv.isFocusable = true
+        tv.setOnClickListener(directoryListener)
+        tv.maxLines = 1
+        tv.textSize = textLg
+        tv.setPadding(10, 5, 10, 5)
+        tv.id = R.id.textview
+        tv.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            BUTTON_SIZE,
+            1f
+        )
+        val hv = HorizontalScrollView(context)
+        hv.addView(tv)
+        hv.isFillViewport = true
+        hv.isFocusable = true
+        hv.setOnClickListener(directoryListener)
+        hv.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            BUTTON_SIZE,
+            7f
+        )
+        val ll = LinearLayout(context)
+        ll.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            BUTTON_SIZE,
+            2f
+        )
+        ll.orientation = LinearLayout.HORIZONTAL
+        ll.gravity = Gravity.FILL
+        ll.setOnClickListener(directoryListener)
+        ll.addView(b1)
+        ll.addView(hv)
+        return ll
+    }
+
+    private fun directoryEntry(name: String): LinearLayout {
+        val up = name == ".."
+        val ll = if (up) directoryView(up)
+        else if (countDirectoryView < cachedDirectoryView.size) cachedDirectoryView[countDirectoryView]!!
+        else directoryView(up).also { cachedDirectoryView[countDirectoryView] = it }
+        ++countDirectoryView
+        val tv = ll.findViewById<TextView>(R.id.textview)
+        tv.tag = name
+        tv.text = if (up) "[${cd.path}]" else name
+        ll.findViewById<ImageView>(R.id.imageview).tag = name
+        return ll
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        return if (keyCode == KeyEvent.KEYCODE_BACK) {
+            finish()
+            true
+        } else super.onKeyUp(keyCode, event)
+    }
+
+    private fun makeContentView(): LinearLayout {
+        val ll = LinearLayout(context)
+        ll.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+        ll.id = R.id.mainview
+        ll.orientation = LinearLayout.VERTICAL
+        ll.gravity = Gravity.FILL
+        val sv = ScrollView(context)
+        sv.id = R.id.scrollview
+        sv.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+        sv.addView(ll)
+        val bg = LinearLayout(context)
+        bg.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+        bg.orientation = LinearLayout.VERTICAL
+        bg.gravity = Gravity.FILL
+        bg.tag = ll
+        bg.addView(
+            titleView,
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        bg.addView(sv)
+        bg.addView(
+            pathEntryView,
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        return bg
+    }
+
+    private fun makeView() {
+        countDirectoryView = 0
+        countFileView = 0
+        countDividerView = 0
+        val sv = contentView.findViewById<ScrollView>(R.id.scrollview)
+        val ll = sv.findViewById<LinearLayout>(R.id.mainview)
+        ll.removeAllViews()
+        if (!::cd.isInitialized) chdir("/")
+        var path = getCanonicalPath(cd)
+        if (path == "") chdir(path.also { path = "/" })
+        if (path == "/") {
+            titleView.visibility = View.GONE
+        } else {
+            titleView.visibility = View.VISIBLE
+            titleView.requestLayout()
+            titleView.findViewById<TextView>(R.id.textview).text = "[${cd.path}]"
+        }
+        val zd = cd.list { file, name -> File(file, name).isDirectory }
+        zd?.let {
+            Arrays.sort(it, 0, it.size, stringSortComparator)
+            for (i in it.indices) {
+                if (it[i] == ".") continue
+                ll.addView(directoryEntry(it[i]))
+                ll.addView(entryDividerH())
+            }
+        }
+        val zf = cd.list { file, name -> !File(file, name).isDirectory }
+        zf?.let {
+            Arrays.sort(it, 0, it.size, stringSortComparator)
+            for (i in it.indices) {
+                ll.addView(fileEntry(it[i]))
+                ll.addView(entryDividerH())
+            }
+        }
+        pathEntryView.findViewById<TextView>(R.id.textview).text = ""
+        sv.scrollTo(0, 0)
+        setContentView(contentView)
+    }
+
+    private val stringSortComparator = Comparator<String> { a, b ->
+        a.lowercase(Locale.getDefault()).compareTo(b.lowercase(Locale.getDefault()))
+    }
+
+    fun getCanonicalPath(path: String): String = getCanonicalPath(File(path))
+    fun getCanonicalPath(file: File): String = try {
+        file.canonicalPath
+    } catch (e: IOException) {
+        file.path
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        super.onCreateOptionsMenu(menu)
+        menu.add(0, ACTION_THEME_SWAP, 0, getString(R.string.fsnavigator_change_theme))
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        super.onOptionsItemSelected(item)
+        return doOptionsItem(item.itemId)
+    }
+
+    private fun doOptionsItem(itemId: Int): Boolean {
+        return when (itemId) {
+            ACTION_THEME_SWAP -> {
+                swapTheme()
+                true
+            }
+
+            else -> false
+        }
+    }
+
+    private fun toast(message: String, duration: Int) {
+        runOnUiThread {
+            Toast.makeText(
+                context,
+                message,
+                if (duration == 0) Toast.LENGTH_SHORT else Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 }
+

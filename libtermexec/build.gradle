@@ -1,14 +1,15 @@
 plugins {
     id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
 }
 
 android {
-    compileSdk 34
+    compileSdk 36
 
     namespace "jackpal.androidterm.libtermexec"
     defaultConfig {
         minSdk 26
-        targetSdk 34
+        targetSdk 36
     }
 
     compileOptions {
@@ -32,8 +33,12 @@ android {
         buildConfig true
         aidl true
     }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
 }
 
 dependencies {
     implementation 'androidx.annotation:annotation:1.9.1'
+    implementation 'androidx.core:core-ktx:1.16.0'
 }

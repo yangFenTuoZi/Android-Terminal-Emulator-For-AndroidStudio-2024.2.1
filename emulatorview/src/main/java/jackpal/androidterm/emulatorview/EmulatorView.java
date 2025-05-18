@@ -16,14 +16,6 @@
 
 package jackpal.androidterm.emulatorview;
 
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat;
-import jackpal.androidterm.emulatorview.compat.KeycodeConstants;
-import jackpal.androidterm.emulatorview.compat.Patterns;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Hashtable;
-
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -50,6 +42,14 @@ import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.widget.Scroller;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Hashtable;
+
+import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat;
+import jackpal.androidterm.emulatorview.compat.KeycodeConstants;
+import jackpal.androidterm.emulatorview.compat.Patterns;
 
 /**
  * A view on a {@link TermSession}.  Displays the terminal emulator's screen,
@@ -187,7 +187,7 @@ public class EmulatorView extends View implements GestureDetector.OnGestureListe
      */
     private final static boolean sTrapAltAndMeta = Build.MODEL.contains("Transformer TF101");
 
-    private Runnable mBlinkCursor = new Runnable() {
+    private final Runnable mBlinkCursor = new Runnable() {
         public void run() {
             if (mCursorBlink != 0) {
                 mCursorVisible = ! mCursorVisible;

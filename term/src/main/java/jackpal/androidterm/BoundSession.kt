@@ -1,41 +1,37 @@
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import android.os.ParcelFileDescriptor;
-import android.text.TextUtils;
-import jackpal.androidterm.util.TermSettings;
+import android.os.ParcelFileDescriptor
+import android.text.TextUtils
+import jackpal.androidterm.util.TermSettings
 
-class BoundSession extends GenericTermSession {
-    private final String issuerTitle;
+class BoundSession(
+    ptmxFd: ParcelFileDescriptor,
+    settings: TermSettings,
+    private val issuerTitle: String
+) : GenericTermSession(ptmxFd, settings, true) {
+    private var fullyInitialized = false
 
-    private boolean fullyInitialized;
-
-    BoundSession(ParcelFileDescriptor ptmxFd, TermSettings settings, String issuerTitle) {
-        super(ptmxFd, settings, true);
-
-        this.issuerTitle = issuerTitle;
-
-        setTermIn(new ParcelFileDescriptor.AutoCloseInputStream(ptmxFd));
-        setTermOut(new ParcelFileDescriptor.AutoCloseOutputStream(ptmxFd));
+    init {
+        termIn = ParcelFileDescriptor.AutoCloseInputStream(ptmxFd)
+        termOut = ParcelFileDescriptor.AutoCloseOutputStream(ptmxFd)
     }
 
-    @Override
-    public String getTitle() {
-        final String extraTitle = super.getTitle();
-
-        return TextUtils.isEmpty(extraTitle)
-               ? issuerTitle
-               : issuerTitle + " — " + extraTitle;
+    override fun getTitle(): String {
+        val extraTitle = super.getTitle()
+        return if (TextUtils.isEmpty(extraTitle)) {
+            issuerTitle
+        } else {
+            "$issuerTitle — $extraTitle"
+        }
     }
 
-    @Override
-    public void initializeEmulator(int columns, int rows) {
-        super.initializeEmulator(columns, rows);
-
-        fullyInitialized = true;
+    override fun initializeEmulator(columns: Int, rows: Int) {
+        super.initializeEmulator(columns, rows)
+        fullyInitialized = true
     }
 
-    @Override
-    boolean isFailFast() {
-        return !fullyInitialized;
+    override fun isFailFast(): Boolean {
+        return !fullyInitialized
     }
 }
+

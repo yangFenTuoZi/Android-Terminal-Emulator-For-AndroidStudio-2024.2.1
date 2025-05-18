@@ -13,241 +13,215 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package jackpal.androidterm
 
-package jackpal.androidterm;
-
-import android.app.ActionBar;
-import android.text.TextUtils;
-
-import jackpal.androidterm.emulatorview.EmulatorView;
-import jackpal.androidterm.emulatorview.TermSession;
-import jackpal.androidterm.emulatorview.UpdateCallback;
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat;
-import jackpal.androidterm.emulatorview.compat.KeycodeConstants;
-import jackpal.androidterm.util.SessionList;
-import jackpal.androidterm.util.TermSettings;
-
-import java.io.IOException;
-import java.text.Collator;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
-import android.content.BroadcastReceiver;
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
-import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
-import android.content.res.Configuration;
-import android.content.res.Resources;
-import android.net.Uri;
-import android.net.wifi.WifiManager;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.IBinder;
-import android.os.PowerManager;
-import android.preference.PreferenceManager;
-import android.util.DisplayMetrics;
-import android.util.Log;
-import android.view.ContextMenu;
-import android.view.ContextMenu.ContextMenuInfo;
-import android.view.GestureDetector.SimpleOnGestureListener;
-import android.view.Gravity;
-import android.view.KeyEvent;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.Window;
-import android.view.WindowManager;
-import android.view.inputmethod.InputMethodManager;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.app.ActionBar
+import android.app.AlertDialog
+import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
+import android.content.ComponentName
+import android.content.Context
+import android.content.DialogInterface
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.SharedPreferences
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.net.wifi.WifiManager
+import android.net.wifi.WifiManager.WifiLock
+import android.os.Bundle
+import android.os.Handler
+import android.os.IBinder
+import android.os.PowerManager
+import android.os.PowerManager.WakeLock
+import android.text.TextUtils
+import android.util.DisplayMetrics
+import android.util.Log
+import android.view.ContextMenu
+import android.view.ContextMenu.ContextMenuInfo
+import android.view.GestureDetector.SimpleOnGestureListener
+import android.view.Gravity
+import android.view.KeyEvent
+import android.view.Menu
+import android.view.MenuItem
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.net.toUri
+import androidx.core.view.get
+import androidx.core.view.size
+import androidx.preference.PreferenceManager
+import jackpal.androidterm.TermService.TSBinder
+import jackpal.androidterm.emulatorview.EmulatorView
+import jackpal.androidterm.emulatorview.TermSession
+import jackpal.androidterm.emulatorview.UpdateCallback
+import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat
+import jackpal.androidterm.emulatorview.compat.KeycodeConstants
+import jackpal.androidterm.util.SessionList
+import jackpal.androidterm.util.TermSettings
+import java.io.IOException
+import java.text.Collator
+import java.util.Arrays
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.max
 
 /**
  * A terminal emulator activity.
  */
-
-public class Term extends Activity implements UpdateCallback, SharedPreferences.OnSharedPreferenceChangeListener {
+open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeListener {
     /**
      * The ViewFlipper which holds the collection of EmulatorView widgets.
      */
-    private TermViewFlipper mViewFlipper;
+    private var mViewFlipper: TermViewFlipper? = null
 
-    /**
-     * The name of the ViewFlipper in the resources.
-     */
-    private static final int VIEW_FLIPPER = R.id.view_flipper;
+    private var mTermSessions: SessionList? = null
 
-    private SessionList mTermSessions;
+    private var mSettings: TermSettings? = null
 
-    private TermSettings mSettings;
+    private var mAlreadyStarted = false
+    private var mStopServiceOnFinish = false
 
-    private final static int SELECT_TEXT_ID = 0;
-    private final static int COPY_ALL_ID = 1;
-    private final static int PASTE_ID = 2;
-    private final static int SEND_CONTROL_KEY_ID = 3;
-    private final static int SEND_FN_KEY_ID = 4;
+    private var tsIntent: Intent? = null
 
-    private boolean mAlreadyStarted = false;
-    private boolean mStopServiceOnFinish = false;
+    private var onResumeSelectWindow = -1
+    private var mPrivateAlias: ComponentName? = null
 
-    private Intent TSIntent;
+    private var mWakeLock: WakeLock? = null
+    private var mWifiLock: WifiLock? = null
+    private val mBackKeyPressed = false
 
-    public static final int REQUEST_CHOOSE_WINDOW = 1;
-    public static final String EXTRA_WINDOW_ID = "jackpal.androidterm.window_id";
-    private int onResumeSelectWindow = -1;
-    private ComponentName mPrivateAlias;
-
-    private PowerManager.WakeLock mWakeLock;
-    private WifiManager.WifiLock mWifiLock;
-    // Available on API 12 and later
-    private static final int WIFI_MODE_FULL_HIGH_PERF = 3;
-
-    private boolean mBackKeyPressed;
-
-    private static final String ACTION_PATH_BROADCAST = "jackpal.androidterm.broadcast.APPEND_TO_PATH";
-    private static final String ACTION_PATH_PREPEND_BROADCAST = "jackpal.androidterm.broadcast.PREPEND_TO_PATH";
-    private static final String PERMISSION_PATH_BROADCAST = "jackpal.androidterm.permission.APPEND_TO_PATH";
-    private static final String PERMISSION_PATH_PREPEND_BROADCAST = "jackpal.androidterm.permission.PREPEND_TO_PATH";
-    private int mPendingPathBroadcasts = 0;
-    private BroadcastReceiver mPathReceiver = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            String path = makePathFromBundle(getResultExtras(false));
-            if (intent.getAction().equals(ACTION_PATH_PREPEND_BROADCAST)) {
-                mSettings.setPrependPath(path);
+    private var mPendingPathBroadcasts = 0
+    private val mPathReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent) {
+            val path = makePathFromBundle(getResultExtras(false))
+            if (ACTION_PATH_PREPEND_BROADCAST == intent.action) {
+                mSettings?.prependPath = path
             } else {
-                mSettings.setAppendPath(path);
+                mSettings?.appendPath = path
             }
-            mPendingPathBroadcasts--;
+            mPendingPathBroadcasts--
 
             if (mPendingPathBroadcasts <= 0 && mTermService != null) {
-                populateViewFlipper();
-                populateWindowList();
+                populateViewFlipper()
+                populateWindowList()
             }
         }
-    };
-    // Available on API 12 and later
-    private static final int FLAG_INCLUDE_STOPPED_PACKAGES = 0x20;
-
-    private TermService mTermService;
-    private ServiceConnection mTSConnection = new ServiceConnection() {
-        public void onServiceConnected(ComponentName className, IBinder service) {
-            Log.i(TermDebug.LOG_TAG, "Bound to TermService");
-            TermService.TSBinder binder = (TermService.TSBinder) service;
-            mTermService = binder.getService();
+    }
+    private var mTermService: TermService? = null
+    private var mTSConnection: ServiceConnection? = object : ServiceConnection {
+        override fun onServiceConnected(className: ComponentName?, service: IBinder?) {
+            Log.i(TermDebug.LOG_TAG, "Bound to TermService")
+            val binder = service as TSBinder
+            mTermService = binder.service
             if (mPendingPathBroadcasts <= 0) {
-                populateViewFlipper();
-                populateWindowList();
+                populateViewFlipper()
+                populateWindowList()
             }
         }
 
-        public void onServiceDisconnected(ComponentName arg0) {
-            mTermService = null;
-        }
-    };
-
-    private ActionBar mActionBar;
-    private int mActionBarMode = TermSettings.ACTION_BAR_MODE_NONE;
-
-    private WindowListAdapter mWinListAdapter;
-
-    @Override
-    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String s) {
-        mSettings.readPrefs(sharedPreferences);
-    }
-
-    private class WindowListActionBarAdapter extends WindowListAdapter implements UpdateCallback {
-        // From android.R.style in API 13
-        private static final int TextAppearance_Holo_Widget_ActionBar_Title = 0x01030112;
-
-        public WindowListActionBarAdapter(SessionList sessions) {
-            super(sessions);
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            TextView label = new TextView(Term.this);
-            String title = getSessionTitle(position, getString(R.string.window_title, position + 1));
-            label.setText(title);
-            label.setTextAppearance(Term.this, TextAppearance_Holo_Widget_ActionBar_Title);
-            return label;
-        }
-
-        @Override
-        public View getDropDownView(int position, View convertView, ViewGroup parent) {
-            return super.getView(position, convertView, parent);
-        }
-
-        public void onUpdate() {
-            notifyDataSetChanged();
-            mActionBar.setSelectedNavigationItem(mViewFlipper.getDisplayedChild());
+        override fun onServiceDisconnected(arg0: ComponentName?) {
+            mTermService = null
         }
     }
 
-    private ActionBar.OnNavigationListener mWinListItemSelected = new ActionBar.OnNavigationListener() {
-        public boolean onNavigationItemSelected(int position, long id) {
-            int oldPosition = mViewFlipper.getDisplayedChild();
-            if (position != oldPosition) {
-                if (position >= mViewFlipper.getChildCount()) {
-                    mViewFlipper.addView(createEmulatorView(mTermSessions.get(position)));
+    private var mActionBar: ActionBar? = null
+    private var mActionBarMode = TermSettings.ACTION_BAR_MODE_NONE
+
+    private var mWinListAdapter: WindowListAdapter? = null
+
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, s: String?) {
+        sharedPreferences?.let { mSettings?.readPrefs(it) }
+    }
+
+    private inner class WindowListActionBarAdapter(sessions: SessionList?) :
+        WindowListAdapter(sessions), UpdateCallback {
+        override fun getView(position: Int, convertView: View, parent: ViewGroup): View {
+            val label = TextView(this@Term)
+            val title = getSessionTitle(position, getString(R.string.window_title, position + 1))
+            label.text = title
+            return label
+        }
+
+        override fun getDropDownView(position: Int, convertView: View, parent: ViewGroup): View {
+            return super.getView(position, convertView, parent)
+        }
+
+        override fun onUpdate() {
+            notifyDataSetChanged()
+            mViewFlipper?.displayedChild?.let { mActionBar?.setSelectedNavigationItem(it) }
+        }
+    }
+
+    private val mWinListItemSelected: ActionBar.OnNavigationListener =
+        object : ActionBar.OnNavigationListener {
+            override fun onNavigationItemSelected(position: Int, id: Long): Boolean {
+                val oldPosition = mViewFlipper?.displayedChild
+                if (position != oldPosition) {
+                    mViewFlipper?.size?.let {
+                        if (position >= it) {
+                            mTermSessions?.get(position)?.let { session ->
+                                mViewFlipper?.addView(createEmulatorView(session))
+                            }
+                        }
+                    }
+                    mViewFlipper?.setDisplayedChild(position)
+                    if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
+                        mActionBar?.hide()
+                    }
                 }
-                mViewFlipper.setDisplayedChild(position);
-                if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
-                    mActionBar.hide();
-                }
+                return true
             }
-            return true;
-        }
-    };
-
-    private boolean mHaveFullHwKeyboard = false;
-
-    private class EmulatorViewGestureListener extends SimpleOnGestureListener {
-        private EmulatorView view;
-
-        public EmulatorViewGestureListener(EmulatorView view) {
-            this.view = view;
         }
 
-        @Override
-        public boolean onSingleTapUp(MotionEvent e) {
+    private var mHaveFullHwKeyboard = false
+
+    private inner class EmulatorViewGestureListener(private val view: EmulatorView) :
+        SimpleOnGestureListener() {
+
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
             // Let the EmulatorView handle taps if mouse tracking is active
-            if (view.isMouseTrackingActive()) return false;
+            if (view.isMouseTrackingActive) return false
 
             //Check for link at tap location
-            String link = view.getURLat(e.getX(), e.getY());
-            if(link != null)
-                execURL(link);
-            else
-                doUIToggle((int) e.getX(), (int) e.getY(), view.getVisibleWidth(), view.getVisibleHeight());
-            return true;
+            val link = view.getURLat(e.x, e.y)
+            if (link != null) execURL(link)
+            else doUIToggle(
+                e.x.toInt(),
+                e.y.toInt(),
+                view.visibleWidth,
+                view.visibleHeight
+            )
+            return true
         }
 
-        @Override
-        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            float absVelocityX = Math.abs(velocityX);
-            float absVelocityY = Math.abs(velocityY);
-            if (absVelocityX > Math.max(1000.0f, 2.0 * absVelocityY)) {
+        override fun onFling(
+            e1: MotionEvent?,
+            e2: MotionEvent,
+            velocityX: Float,
+            velocityY: Float
+        ): Boolean {
+            val absVelocityX = abs(velocityX.toDouble()).toFloat()
+            val absVelocityY = abs(velocityY.toDouble()).toFloat()
+            if (absVelocityX > max(1000.0, 2.0 * absVelocityY)) {
                 // Assume user wanted side to side movement
                 if (velocityX > 0) {
                     // Left to right swipe -- previous window
-                    mViewFlipper.showPrevious();
+                    mViewFlipper?.showPrevious()
                 } else {
                     // Right to left swipe -- next window
-                    mViewFlipper.showNext();
+                    mViewFlipper?.showNext()
                 }
-                return true;
+                return true
             } else {
-                return false;
+                return false
             }
         }
     }
@@ -255,807 +229,850 @@ public class Term extends Activity implements UpdateCallback, SharedPreferences.
     /**
      * Should we use keyboard shortcuts?
      */
-    private boolean mUseKeyboardShortcuts;
+    private var mUseKeyboardShortcuts = false
 
     /**
      * Intercepts keys before the view/terminal gets it.
      */
-    private View.OnKeyListener mKeyListener = new View.OnKeyListener() {
-        public boolean onKey(View v, int keyCode, KeyEvent event) {
-            return backkeyInterceptor(keyCode, event) || keyboardShortcuts(keyCode, event);
+    private val mKeyListener: View.OnKeyListener = object : View.OnKeyListener {
+        override fun onKey(v: View?, keyCode: Int, event: KeyEvent): Boolean {
+            return backkeyInterceptor(keyCode, event) || keyboardShortcuts(keyCode, event)
         }
 
         /**
          * Keyboard shortcuts (tab management, paste)
          */
-        private boolean keyboardShortcuts(int keyCode, KeyEvent event) {
-            if (event.getAction() != KeyEvent.ACTION_DOWN) {
-                return false;
+        private fun keyboardShortcuts(keyCode: Int, event: KeyEvent): Boolean {
+            if (event.action != KeyEvent.ACTION_DOWN) {
+                return false
             }
             if (!mUseKeyboardShortcuts) {
-                return false;
+                return false
             }
-            boolean isCtrlPressed = (event.getMetaState() & KeycodeConstants.META_CTRL_ON) != 0;
-            boolean isShiftPressed = (event.getMetaState() & KeycodeConstants.META_SHIFT_ON) != 0;
+            val isCtrlPressed = (event.metaState and KeycodeConstants.META_CTRL_ON) != 0
+            val isShiftPressed = (event.metaState and KeycodeConstants.META_SHIFT_ON) != 0
 
             if (keyCode == KeycodeConstants.KEYCODE_TAB && isCtrlPressed) {
                 if (isShiftPressed) {
-                    mViewFlipper.showPrevious();
+                    mViewFlipper?.showPrevious()
                 } else {
-                    mViewFlipper.showNext();
+                    mViewFlipper?.showNext()
                 }
 
-                return true;
+                return true
             } else if (keyCode == KeycodeConstants.KEYCODE_N && isCtrlPressed && isShiftPressed) {
-                doCreateNewWindow();
+                doCreateNewWindow()
 
-                return true;
+                return true
             } else if (keyCode == KeycodeConstants.KEYCODE_V && isCtrlPressed && isShiftPressed) {
-                doPaste();
+                doPaste()
 
-                return true;
+                return true
             } else {
-                return false;
+                return false
             }
         }
 
         /**
          * Make sure the back button always leaves the application.
          */
-        private boolean backkeyInterceptor(int keyCode, KeyEvent event) {
-            if (keyCode == KeyEvent.KEYCODE_BACK && mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES && mActionBar != null && mActionBar.isShowing()) {
+        private fun backkeyInterceptor(keyCode: Int, event: KeyEvent?): Boolean {
+            if (keyCode == KeyEvent.KEYCODE_BACK && mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES && mActionBar != null && mActionBar?.isShowing == true) {
                 /* We need to intercept the key event before the view sees it,
                    otherwise the view will handle it before we get it */
-                onKeyUp(keyCode, event);
-                return true;
+                onKeyUp(keyCode, event)
+                return true
             } else {
-                return false;
+                return false
             }
         }
-    };
+    }
 
-    private Handler mHandler = new Handler();
+    private val mHandler = Handler()
 
-    @Override
-    public void onCreate(Bundle icicle) {
-        super.onCreate(icicle);
+    public override fun onCreate(icicle: Bundle?) {
+        super.onCreate(icicle)
 
-        Log.v(TermDebug.LOG_TAG, "onCreate");
+        Log.v(TermDebug.LOG_TAG, "onCreate")
 
-        mPrivateAlias = new ComponentName(this, RemoteInterface.PRIVACT_ACTIVITY_ALIAS);
+        mPrivateAlias = ComponentName(this, RemoteInterface.PRIVACT_ACTIVITY_ALIAS)
 
-        if (icicle == null)
-            onNewIntent(getIntent());
+        if (icicle == null) onNewIntent(intent)
 
-        final SharedPreferences mPrefs = PreferenceManager.getDefaultSharedPreferences(this);
-        mSettings = new TermSettings(getResources(), mPrefs);
-        mPrefs.registerOnSharedPreferenceChangeListener(this);
+        val mPrefs = PreferenceManager.getDefaultSharedPreferences(this)
+        mSettings = TermSettings(getResources(), mPrefs)
+        mPrefs.registerOnSharedPreferenceChangeListener(this)
 
-        Intent broadcast = new Intent(ACTION_PATH_BROADCAST);
-        broadcast.addFlags(FLAG_INCLUDE_STOPPED_PACKAGES);
-        mPendingPathBroadcasts++;
-        sendOrderedBroadcast(broadcast, PERMISSION_PATH_BROADCAST, mPathReceiver, null, RESULT_OK, null, null);
+        var broadcast = Intent(ACTION_PATH_BROADCAST)
+        broadcast.addFlags(FLAG_INCLUDE_STOPPED_PACKAGES)
+        mPendingPathBroadcasts++
+        sendOrderedBroadcast(
+            broadcast,
+            PERMISSION_PATH_BROADCAST,
+            mPathReceiver,
+            null,
+            RESULT_OK,
+            null,
+            null
+        )
 
-        broadcast = new Intent(broadcast);
-        broadcast.setAction(ACTION_PATH_PREPEND_BROADCAST);
-        mPendingPathBroadcasts++;
-        sendOrderedBroadcast(broadcast, PERMISSION_PATH_PREPEND_BROADCAST, mPathReceiver, null, RESULT_OK, null, null);
+        broadcast = Intent(broadcast)
+        broadcast.setAction(ACTION_PATH_PREPEND_BROADCAST)
+        mPendingPathBroadcasts++
+        sendOrderedBroadcast(
+            broadcast,
+            PERMISSION_PATH_PREPEND_BROADCAST,
+            mPathReceiver,
+            null,
+            RESULT_OK,
+            null,
+            null
+        )
 
-        TSIntent = new Intent(this, TermService.class);
-        startService(TSIntent);
+        tsIntent = Intent(this, TermService::class.java)
+        startService(tsIntent)
 
-        mActionBarMode = mSettings.actionBarMode();
+        mSettings?.let {
+            mActionBarMode = it.actionBarMode()
+        }
 
-        setContentView(R.layout.term_activity);
-        mViewFlipper = findViewById(VIEW_FLIPPER);
+        setContentView(R.layout.term_activity)
+        mViewFlipper = findViewById<TermViewFlipper?>(VIEW_FLIPPER)
 
-        PowerManager pm = (PowerManager)getSystemService(Context.POWER_SERVICE);
-        mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TermDebug.LOG_TAG);
-        WifiManager wm = (WifiManager)getSystemService(Context.WIFI_SERVICE);
-        mWifiLock = wm.createWifiLock(WIFI_MODE_FULL_HIGH_PERF, TermDebug.LOG_TAG);
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TermDebug.LOG_TAG)
+        val wm = getSystemService(WIFI_SERVICE) as WifiManager
+        mWifiLock = wm.createWifiLock(WIFI_MODE_FULL_HIGH_PERF, TermDebug.LOG_TAG)
 
-        ActionBar actionBar = getActionBar();
+        val actionBar = getActionBar()
         if (actionBar != null) {
-            mActionBar = actionBar;
-            actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_LIST);
-            actionBar.setDisplayOptions(0, ActionBar.DISPLAY_SHOW_TITLE);
+            mActionBar = actionBar
+            actionBar.navigationMode = ActionBar.NAVIGATION_MODE_LIST
+            actionBar.setDisplayOptions(0, ActionBar.DISPLAY_SHOW_TITLE)
             if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
-                actionBar.hide();
+                actionBar.hide()
             }
         }
 
-        mHaveFullHwKeyboard = checkHaveFullHwKeyboard(getResources().getConfiguration());
+        mHaveFullHwKeyboard = checkHaveFullHwKeyboard(getResources().configuration)
 
-        updatePrefs();
-        mAlreadyStarted = true;
+        updatePrefs()
+        mAlreadyStarted = true
     }
 
-    private String makePathFromBundle(Bundle extras) {
-        if (extras == null || extras.isEmpty()) {
-            return "";
+    private fun makePathFromBundle(extras: Bundle?): String? {
+        if (extras == null || extras.isEmpty) {
+            return ""
         }
 
-        String[] keys = new String[extras.size()];
-        keys = extras.keySet().toArray(keys);
-        Collator collator = Collator.getInstance(Locale.US);
-        Arrays.sort(keys, collator);
+        val keys = extras.keySet().toTypedArray()
+        val collator = Collator.getInstance(Locale.US)
+        Arrays.sort(keys, collator)
 
-        StringBuilder path = new StringBuilder();
-        for (String key : keys) {
-            String dir = extras.getString(key);
-            if (dir != null && !dir.isEmpty()) {
-                path.append(dir);
-                path.append(":");
+        val path = StringBuilder()
+        for (key in keys) {
+            val dir = extras.getString(key)
+            if (!dir.isNullOrEmpty()) {
+                path.append(dir)
+                path.append(":")
             }
         }
 
-        return path.substring(0, path.length()-1);
+        return if (path.isNotEmpty()) path.substring(0, path.length - 1) else ""
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
+    override fun onStart() {
+        super.onStart()
 
-        if (!bindService(TSIntent, mTSConnection, BIND_AUTO_CREATE)) {
-            throw new IllegalStateException("Failed to bind to TermService!");
+        tsIntent?.let {
+            mTSConnection?.let { conn ->
+                check(
+                    bindService(
+                        it,
+                        conn,
+                        BIND_AUTO_CREATE
+                    )
+                ) { "Failed to bind to TermService!" }
+            }
         }
     }
 
-    private void populateViewFlipper() {
+    private fun populateViewFlipper() {
         if (mTermService != null) {
-            mTermSessions = mTermService.getSessions();
+            mTermSessions = mTermService?.sessions
 
-            if (mTermSessions.isEmpty()) {
+            if (mTermSessions?.isEmpty() == true) {
                 try {
-                    mTermSessions.add(createTermSession());
-                } catch (IOException e) {
-                    Toast.makeText(this, "Failed to start terminal session", Toast.LENGTH_LONG).show();
-                    finish();
-                    return;
+                    mTermSessions?.add(createTermSession())
+                } catch (e: IOException) {
+                    Toast.makeText(this, "Failed to start terminal session", Toast.LENGTH_LONG)
+                        .show()
+                    finish()
+                    return
                 }
             }
 
-            mTermSessions.addCallback(this);
+            mTermSessions?.addCallback(this)
 
-            for (TermSession session : mTermSessions) {
-                EmulatorView view = createEmulatorView(session);
-                mViewFlipper.addView(view);
+            if (mTermSessions != null) {
+                for (session in mTermSessions) {
+                    val view: EmulatorView = createEmulatorView(session)
+                    mViewFlipper?.addView(view)
+                }
             }
 
-            updatePrefs();
+            updatePrefs()
 
             if (onResumeSelectWindow >= 0) {
-                mViewFlipper.setDisplayedChild(onResumeSelectWindow);
-                onResumeSelectWindow = -1;
+                mViewFlipper?.setDisplayedChild(onResumeSelectWindow)
+                onResumeSelectWindow = -1
             }
-            mViewFlipper.onResume();
+            mViewFlipper?.onResume()
         }
     }
 
-    private void populateWindowList() {
+    private fun populateWindowList() {
         if (mActionBar == null) {
             // Not needed
-            return;
+            return
         }
         if (mTermSessions != null) {
-            int position = mViewFlipper.getDisplayedChild();
+            val position = mViewFlipper?.displayedChild
             if (mWinListAdapter == null) {
-                mWinListAdapter = new WindowListActionBarAdapter(mTermSessions);
+                mWinListAdapter = WindowListActionBarAdapter(mTermSessions)
 
-                mActionBar.setListNavigationCallbacks(mWinListAdapter, mWinListItemSelected);
+                mActionBar?.setListNavigationCallbacks(mWinListAdapter, mWinListItemSelected)
             } else {
-                mWinListAdapter.setSessions(mTermSessions);
+                mWinListAdapter?.setSessions(mTermSessions)
             }
-            mViewFlipper.addCallback(mWinListAdapter);
+            mWinListAdapter?.let { mViewFlipper?.addCallback(it) }
 
-            mActionBar.setSelectedNavigationItem(position);
+            position?.let { mActionBar?.setSelectedNavigationItem(it) }
         }
     }
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
+    public override fun onDestroy() {
+        super.onDestroy()
 
         PreferenceManager.getDefaultSharedPreferences(this)
-                .unregisterOnSharedPreferenceChangeListener(this);
+            .unregisterOnSharedPreferenceChangeListener(this)
 
         if (mStopServiceOnFinish) {
-            stopService(TSIntent);
+            stopService(tsIntent)
         }
-        mTermService = null;
-        mTSConnection = null;
-        if (mWakeLock.isHeld()) {
-            mWakeLock.release();
+        mTermService = null
+        mTSConnection = null
+        if (mWakeLock?.isHeld == true) {
+            mWakeLock?.release()
         }
-        if (mWifiLock.isHeld()) {
-            mWifiLock.release();
-        }
-    }
-
-    private void restart() {
-        startActivity(getIntent());
-        finish();
-    }
-
-    protected static TermSession createTermSession(Context context, TermSettings settings, String initialCommand) throws IOException {
-        GenericTermSession session = new ShellTermSession(settings, initialCommand);
-        // XXX We should really be able to fetch this from within TermSession
-        session.setProcessExitMessage(context.getString(R.string.process_exit_message));
-
-        return session;
-    }
-
-    private TermSession createTermSession() throws IOException {
-        TermSettings settings = mSettings;
-        TermSession session = createTermSession(this, settings, settings.getInitialCommand());
-        session.setFinishCallback(mTermService);
-        return session;
-    }
-
-    private TermView createEmulatorView(TermSession session) {
-        DisplayMetrics metrics = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(metrics);
-        TermView emulatorView = new TermView(this, session, metrics);
-
-        emulatorView.setExtGestureListener(new EmulatorViewGestureListener(emulatorView));
-        emulatorView.setOnKeyListener(mKeyListener);
-        registerForContextMenu(emulatorView);
-
-        return emulatorView;
-    }
-
-    private TermSession getCurrentTermSession() {
-        SessionList sessions = mTermSessions;
-        if (sessions == null) {
-            return null;
-        } else {
-            return sessions.get(mViewFlipper.getDisplayedChild());
+        if (mWifiLock?.isHeld == true) {
+            mWifiLock?.release()
         }
     }
 
-    private EmulatorView getCurrentEmulatorView() {
-        return (EmulatorView) mViewFlipper.getCurrentView();
+    private fun restart() {
+        startActivity(intent)
+        finish()
     }
 
-    private void updatePrefs() {
-        mUseKeyboardShortcuts = mSettings.getUseKeyboardShortcutsFlag();
+    @Throws(IOException::class)
+    private fun createTermSession(): TermSession {
+        val settings: TermSettings = mSettings ?: throw IOException("No settings available")
+        val session = createTermSession(this, settings, settings.initialCommand)
+        session.setFinishCallback(mTermService)
+        return session
+    }
 
-        DisplayMetrics metrics = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(metrics);
+    private fun createEmulatorView(session: TermSession): TermView {
+        val metrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(metrics)
+        val emulatorView = TermView(this, session, metrics)
 
-        mViewFlipper.updatePrefs(mSettings);
+        emulatorView.setExtGestureListener(EmulatorViewGestureListener(emulatorView))
+        emulatorView.setOnKeyListener(mKeyListener)
+        registerForContextMenu(emulatorView)
 
-        for (View v : mViewFlipper) {
-            ((EmulatorView) v).setDensity(metrics);
-            ((TermView) v).updatePrefs(mSettings);
-        }
+        return emulatorView
+    }
 
-        if (mTermSessions != null) {
-            for (TermSession session : mTermSessions) {
-                ((GenericTermSession) session).updatePrefs(mSettings);
+    private val currentTermSession: TermSession?
+        get() {
+            val sessions = mTermSessions
+            return if (sessions == null) {
+                null
+            } else {
+                mViewFlipper?.displayedChild?.let { sessions[it] }
             }
         }
 
-        {
-            Window win = getWindow();
-            WindowManager.LayoutParams params = win.getAttributes();
-            final int FULLSCREEN = WindowManager.LayoutParams.FLAG_FULLSCREEN;
-            int desiredFlag = mSettings.showStatusBar() ? 0 : FULLSCREEN;
-            if (desiredFlag != (params.flags & FULLSCREEN) || mActionBarMode != mSettings.actionBarMode()) {
+    private val currentEmulatorView: EmulatorView?
+        get() = mViewFlipper?.currentView as EmulatorView?
+
+    private fun updatePrefs() {
+        mUseKeyboardShortcuts = mSettings?.useKeyboardShortcutsFlag == true
+
+        val metrics = DisplayMetrics()
+        windowManager.defaultDisplay.getMetrics(metrics)
+
+        mSettings?.let { mViewFlipper?.updatePrefs(it) }
+
+        if (mViewFlipper != null) {
+            for (v in mViewFlipper) {
+                (v as EmulatorView).setDensity(metrics)
+                mSettings?.let { (v as TermView).updatePrefs(it) }
+            }
+        }
+
+        if (mTermSessions != null) {
+            for (session in mTermSessions) {
+                mSettings?.let { (session as GenericTermSession).updatePrefs(it) }
+            }
+        }
+
+        run {
+            val win = window
+            val params = win.attributes
+            val fullScreen = WindowManager.LayoutParams.FLAG_FULLSCREEN
+            val desiredFlag = if (mSettings?.showStatusBar() == true) 0 else fullScreen
+            if (desiredFlag != (params.flags and fullScreen) || mActionBarMode != mSettings?.actionBarMode()) {
                 if (mAlreadyStarted) {
                     // Can't switch to/from fullscreen after
                     // starting the activity.
-                    restart();
+                    restart()
                 } else {
-                    win.setFlags(desiredFlag, FULLSCREEN);
+                    win.setFlags(desiredFlag, fullScreen)
                     if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
                         if (mActionBar != null) {
-                            mActionBar.hide();
+                            mActionBar?.hide()
                         }
                     }
                 }
             }
         }
 
-        int orientation = mSettings.getScreenOrientation();
-        int o = 0;
+        val orientation = mSettings?.screenOrientation
+        var o = 0
         if (orientation == 0) {
-            o = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            o = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         } else if (orientation == 1) {
-            o = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            o = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         } else if (orientation == 2) {
-            o = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            o = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         } else {
             /* Shouldn't be happened. */
         }
-        setRequestedOrientation(o);
+        setRequestedOrientation(o)
     }
 
-    @Override
-    public void onPause() {
-        super.onPause();
+    public override fun onPause() {
+        super.onPause()
 
         /* Explicitly close the input method
            Otherwise, the soft keyboard could cover up whatever activity takes
            our place */
-        final IBinder token = mViewFlipper.getWindowToken();
-        new Thread(() -> {
-            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-            imm.hideSoftInputFromWindow(token, 0);
-        }).start();
+        val token = mViewFlipper?.windowToken
+        Thread(Runnable {
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(token, 0)
+        }).start()
     }
 
-    @Override
-    protected void onStop() {
-        mViewFlipper.onPause();
+    override fun onStop() {
+        mViewFlipper?.onPause()
         if (mTermSessions != null) {
-            mTermSessions.removeCallback(this);
+            mTermSessions?.removeCallback(this)
 
             if (mWinListAdapter != null) {
-                mTermSessions.removeCallback(mWinListAdapter);
-                mTermSessions.removeTitleChangedListener(mWinListAdapter);
-                mViewFlipper.removeCallback(mWinListAdapter);
+                mTermSessions?.removeCallback(mWinListAdapter!!)
+                mTermSessions?.removeTitleChangedListener(mWinListAdapter!!)
+                mViewFlipper?.removeCallback(mWinListAdapter!!)
             }
         }
 
-        mViewFlipper.removeAllViews();
+        mViewFlipper?.removeAllViews()
 
-        unbindService(mTSConnection);
+        mTSConnection?.let { unbindService(it) }
 
-        super.onStop();
+        super.onStop()
     }
 
-    private boolean checkHaveFullHwKeyboard(Configuration c) {
+    private fun checkHaveFullHwKeyboard(c: Configuration): Boolean {
         return (c.keyboard == Configuration.KEYBOARD_QWERTY) &&
-            (c.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO);
+                (c.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO)
     }
 
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
 
-        mHaveFullHwKeyboard = checkHaveFullHwKeyboard(newConfig);
+        mHaveFullHwKeyboard = checkHaveFullHwKeyboard(newConfig)
 
-        EmulatorView v = (EmulatorView) mViewFlipper.getCurrentView();
-        if (v != null) {
-            v.updateSize(false);
-        }
+        val v = mViewFlipper?.currentView as EmulatorView?
+        v?.updateSize(false)
 
         if (mWinListAdapter != null) {
             // Force Android to redraw the label in the navigation dropdown
-            mWinListAdapter.notifyDataSetChanged();
+            mWinListAdapter?.notifyDataSetChanged()
         }
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.main, menu);
-        menu.findItem(R.id.menu_new_window).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-        menu.findItem(R.id.menu_close_window).setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
-        return true;
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main, menu)
+        menu.findItem(R.id.menu_new_window).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+        menu.findItem(R.id.menu_close_window).setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+        return true
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        val id = item.itemId
         if (id == R.id.menu_preferences) {
-            doPreferences();
+            doPreferences()
         } else if (id == R.id.menu_new_window) {
-            doCreateNewWindow();
+            doCreateNewWindow()
         } else if (id == R.id.menu_close_window) {
-            confirmCloseWindow();
+            confirmCloseWindow()
         } else if (id == R.id.menu_window_list) {
-            startActivityForResult(new Intent(this, WindowList.class), REQUEST_CHOOSE_WINDOW);
+            startActivityForResult(Intent(this, WindowList::class.java), REQUEST_CHOOSE_WINDOW)
         } else if (id == R.id.menu_reset) {
-            doResetTerminal();
-            Toast toast = Toast.makeText(this,R.string.reset_toast_notification,Toast.LENGTH_LONG);
-            toast.setGravity(Gravity.CENTER, 0, 0);
-            toast.show();
+            doResetTerminal()
+            val toast = Toast.makeText(this, R.string.reset_toast_notification, Toast.LENGTH_LONG)
+            toast.setGravity(Gravity.CENTER, 0, 0)
+            toast.show()
         } else if (id == R.id.menu_send_email) {
-            doEmailTranscript();
+            doEmailTranscript()
         } else if (id == R.id.menu_special_keys) {
-            doDocumentKeys();
+            doDocumentKeys()
         } else if (id == R.id.menu_toggle_soft_keyboard) {
-            doToggleSoftKeyboard();
+            doToggleSoftKeyboard()
         } else if (id == R.id.menu_toggle_wakelock) {
-            doToggleWakeLock();
+            doToggleWakeLock()
         } else if (id == R.id.menu_toggle_wifilock) {
-            doToggleWifiLock();
-        } else if  (id == R.id.action_help) {
-                Intent openHelp = new Intent(Intent.ACTION_VIEW,
-                Uri.parse(getString(R.string.help_url)));
-                startActivity(openHelp);
+            doToggleWifiLock()
+        } else if (id == R.id.action_help) {
+            val openHelp = Intent(
+                Intent.ACTION_VIEW,
+                getString(R.string.help_url).toUri()
+            )
+            startActivity(openHelp)
         }
         // Hide the action bar if appropriate
         if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
-            mActionBar.hide();
+            mActionBar?.hide()
         }
-        return super.onOptionsItemSelected(item);
+        return super.onOptionsItemSelected(item)
     }
 
-    private void doCreateNewWindow() {
+    private fun doCreateNewWindow() {
         if (mTermSessions == null) {
-            Log.w(TermDebug.LOG_TAG, "Couldn't create new window because mTermSessions == null");
-            return;
+            Log.w(TermDebug.LOG_TAG, "Couldn't create new window because mTermSessions == null")
+            return
         }
 
         try {
-            TermSession session = createTermSession();
+            val session = createTermSession()
 
-            mTermSessions.add(session);
+            mTermSessions?.add(session)
 
-            TermView view = createEmulatorView(session);
-            view.updatePrefs(mSettings);
+            val view = createEmulatorView(session)
+            mSettings?.let { view.updatePrefs(it) }
 
-            mViewFlipper.addView(view);
-            mViewFlipper.setDisplayedChild(mViewFlipper.getChildCount()-1);
-        } catch (IOException e) {
-            Toast.makeText(this, "Failed to create a session", Toast.LENGTH_SHORT).show();
+            mViewFlipper?.addView(view)
+            mViewFlipper?.size?.let { mViewFlipper?.setDisplayedChild(it - 1) }
+        } catch (e: IOException) {
+            Toast.makeText(this, "Failed to create a session", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private void confirmCloseWindow() {
-        final AlertDialog.Builder b = new AlertDialog.Builder(this);
-        b.setIcon(android.R.drawable.ic_dialog_alert);
-        b.setMessage(R.string.confirm_window_close_message);
-        final Runnable closeWindow = this::doCloseWindow;
-        b.setPositiveButton(android.R.string.yes, (dialog, id) -> {
-            dialog.dismiss();
-            mHandler.post(closeWindow);
-        });
-        b.setNegativeButton(android.R.string.no, null);
-        b.show();
+    private fun confirmCloseWindow() {
+        val b = AlertDialog.Builder(this)
+        b.setIcon(android.R.drawable.ic_dialog_alert)
+        b.setMessage(R.string.confirm_window_close_message)
+        val closeWindow = Runnable { this.doCloseWindow() }
+        b.setPositiveButton(
+            android.R.string.yes,
+            DialogInterface.OnClickListener { dialog: DialogInterface?, id: Int ->
+                dialog?.dismiss()
+                mHandler.post(closeWindow)
+            })
+        b.setNegativeButton(android.R.string.no, null)
+        b.show()
     }
 
-    private void doCloseWindow() {
+    private fun doCloseWindow() {
         if (mTermSessions == null) {
-            return;
+            return
         }
 
-        EmulatorView view = getCurrentEmulatorView();
+        val view = this.currentEmulatorView
         if (view == null) {
-            return;
+            return
         }
-        TermSession session = mTermSessions.remove(mViewFlipper.getDisplayedChild());
-        view.onPause();
-        session.finish();
-        mViewFlipper.removeView(view);
-        if (!mTermSessions.isEmpty()) {
-            mViewFlipper.showNext();
+        val session = mViewFlipper?.displayedChild?.let { mTermSessions?.removeAt(it) }
+        view.onPause()
+        session?.finish()
+        mViewFlipper?.removeView(view)
+        mTermSessions?.isEmpty()?.let {
+            if (!it) {
+                mViewFlipper?.showNext()
+            }
         }
     }
 
-    @Override
-    protected void onActivityResult(int request, int result, Intent data) {
+    override fun onActivityResult(request: Int, result: Int, data: Intent?) {
+        super.onActivityResult(request, result, data)
         if (request == REQUEST_CHOOSE_WINDOW) {
             if (result == RESULT_OK && data != null) {
-                int position = data.getIntExtra(EXTRA_WINDOW_ID, -2);
+                val position = data.getIntExtra(EXTRA_WINDOW_ID, -2)
                 if (position >= 0) {
                     // Switch windows after session list is in sync, not here
-                    onResumeSelectWindow = position;
+                    onResumeSelectWindow = position
                 } else if (position == -1) {
-                    doCreateNewWindow();
-                    onResumeSelectWindow = mTermSessions.size() - 1;
+                    doCreateNewWindow()
+                    mTermSessions?.size?.let { onResumeSelectWindow = it - 1 }
                 }
             } else {
                 // Close the activity if user closed all sessions
                 // TODO the left path will be invoked when nothing happened, but this Activity was destroyed!
-                if (mTermSessions == null || mTermSessions.isEmpty()) {
-                    mStopServiceOnFinish = true;
-                    finish();
+                if (mTermSessions == null || mTermSessions?.isEmpty() == true) {
+                    mStopServiceOnFinish = true
+                    finish()
                 }
             }
         }
     }
 
-    @Override
-    protected void onNewIntent(Intent intent) {
-        if ((intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) {
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) {
             // Don't repeat action if intent comes from history
-            return;
+            return
         }
 
-        String action = intent.getAction();
-        if (TextUtils.isEmpty(action) || !mPrivateAlias.equals(intent.getComponent())) {
-            return;
+        val action = intent.action
+        if (TextUtils.isEmpty(action) || mPrivateAlias != intent.component) {
+            return
         }
 
         // huge number simply opens new window
         // TODO: add a way to restrict max number of windows per caller (possibly via reusing BoundSession)
-        switch (action) {
-            case RemoteInterface.PRIVACT_OPEN_NEW_WINDOW:
-                onResumeSelectWindow = Integer.MAX_VALUE;
-                break;
-            case RemoteInterface.PRIVACT_SWITCH_WINDOW:
-                int target = intent.getIntExtra(RemoteInterface.PRIVEXTRA_TARGET_WINDOW, -1);
+        when (action) {
+            RemoteInterface.PRIVACT_OPEN_NEW_WINDOW -> onResumeSelectWindow =
+                Int.Companion.MAX_VALUE
+
+            RemoteInterface.PRIVACT_SWITCH_WINDOW -> {
+                val target = intent.getIntExtra(RemoteInterface.PRIVEXTRA_TARGET_WINDOW, -1)
                 if (target >= 0) {
-                    onResumeSelectWindow = target;
+                    onResumeSelectWindow = target
                 }
-                break;
+            }
         }
     }
 
-    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
-        MenuItem wakeLockItem = menu.findItem(R.id.menu_toggle_wakelock);
-        MenuItem wifiLockItem = menu.findItem(R.id.menu_toggle_wifilock);
-        if (mWakeLock.isHeld()) {
-            wakeLockItem.setTitle(R.string.disable_wakelock);
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        val wakeLockItem = menu.findItem(R.id.menu_toggle_wakelock)
+        val wifiLockItem = menu.findItem(R.id.menu_toggle_wifilock)
+        if (mWakeLock?.isHeld == true) {
+            wakeLockItem.setTitle(R.string.disable_wakelock)
         } else {
-            wakeLockItem.setTitle(R.string.enable_wakelock);
+            wakeLockItem.setTitle(R.string.enable_wakelock)
         }
-        if (mWifiLock.isHeld()) {
-            wifiLockItem.setTitle(R.string.disable_wifilock);
+        if (mWifiLock?.isHeld == true) {
+            wifiLockItem.setTitle(R.string.disable_wifilock)
         } else {
-            wifiLockItem.setTitle(R.string.enable_wifilock);
+            wifiLockItem.setTitle(R.string.enable_wifilock)
         }
-        return super.onPrepareOptionsMenu(menu);
+        return super.onPrepareOptionsMenu(menu)
     }
 
-    @Override
-    public void onCreateContextMenu(ContextMenu menu, View v,
-            ContextMenuInfo menuInfo) {
-      super.onCreateContextMenu(menu, v, menuInfo);
-      menu.setHeaderTitle(R.string.edit_text);
-      menu.add(0, SELECT_TEXT_ID, 0, R.string.select_text);
-      menu.add(0, COPY_ALL_ID, 0, R.string.copy_all);
-      menu.add(0, PASTE_ID, 0, R.string.paste);
-      menu.add(0, SEND_CONTROL_KEY_ID, 0, R.string.send_control_key);
-      menu.add(0, SEND_FN_KEY_ID, 0, R.string.send_fn_key);
-      if (!canPaste()) {
-          menu.getItem(PASTE_ID).setEnabled(false);
-      }
+    override fun onCreateContextMenu(
+        menu: ContextMenu, v: View?,
+        menuInfo: ContextMenuInfo?
+    ) {
+        super.onCreateContextMenu(menu, v, menuInfo)
+        menu.setHeaderTitle(R.string.edit_text)
+        menu.add(0, SELECT_TEXT_ID, 0, R.string.select_text)
+        menu.add(0, COPY_ALL_ID, 0, R.string.copy_all)
+        menu.add(0, PASTE_ID, 0, R.string.paste)
+        menu.add(0, SEND_CONTROL_KEY_ID, 0, R.string.send_control_key)
+        menu.add(0, SEND_FN_KEY_ID, 0, R.string.send_fn_key)
+        if (!canPaste()) {
+            menu[PASTE_ID].isEnabled = false
+        }
     }
 
-    @Override
-    public boolean onContextItemSelected(MenuItem item) {
-        return switch (item.getItemId()) {
-            case SELECT_TEXT_ID -> {
-                getCurrentEmulatorView().toggleSelectingText();
-                yield true;
+    override fun onContextItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            SELECT_TEXT_ID -> {
+                this.currentEmulatorView?.toggleSelectingText()
+                true
             }
-            case COPY_ALL_ID -> {
-                doCopyAll();
-                yield true;
-            }
-            case PASTE_ID -> {
-                doPaste();
-                yield true;
-            }
-            case SEND_CONTROL_KEY_ID -> {
-                doSendControlKey();
-                yield true;
-            }
-            case SEND_FN_KEY_ID -> {
-                doSendFnKey();
-                yield true;
-            }
-            default -> super.onContextItemSelected(item);
-        };
-        }
 
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
+            COPY_ALL_ID -> {
+                doCopyAll()
+                true
+            }
+
+            PASTE_ID -> {
+                doPaste()
+                true
+            }
+
+            SEND_CONTROL_KEY_ID -> {
+                doSendControlKey()
+                true
+            }
+
+            SEND_FN_KEY_ID -> {
+                doSendFnKey()
+                true
+            }
+
+            else -> super.onContextItemSelected(item)
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         /* The pre-Eclair default implementation of onKeyDown() would prevent
            our handling of the Back key in onKeyUp() from taking effect, so
            ignore it here */
-        return super.onKeyDown(keyCode, event);
+        return super.onKeyDown(keyCode, event)
     }
 
-    @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
-        switch (keyCode) {
-        case KeyEvent.KEYCODE_BACK:
-            if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES && mActionBar != null && mActionBar.isShowing()) {
-                mActionBar.hide();
-                return true;
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        when (keyCode) {
+            KeyEvent.KEYCODE_BACK -> {
+                if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES && mActionBar != null && mActionBar?.isShowing == true) {
+                    mActionBar?.hide()
+                    return true
+                }
+                when (mSettings?.backKeyAction) {
+                    TermSettings.BACK_KEY_STOPS_SERVICE -> {
+                        mStopServiceOnFinish = true
+                        finish()
+                        return true
+                    }
+
+                    TermSettings.BACK_KEY_CLOSES_ACTIVITY -> {
+                        finish()
+                        return true
+                    }
+
+                    TermSettings.BACK_KEY_CLOSES_WINDOW -> {
+                        doCloseWindow()
+                        return true
+                    }
+
+                    else -> return false
+                }
             }
-            switch (mSettings.getBackKeyAction()) {
-            case TermSettings.BACK_KEY_STOPS_SERVICE:
-                mStopServiceOnFinish = true;
-            case TermSettings.BACK_KEY_CLOSES_ACTIVITY:
-                finish();
-                return true;
-            case TermSettings.BACK_KEY_CLOSES_WINDOW:
-                doCloseWindow();
-                return true;
-            default:
-                return false;
-            }
-        case KeyEvent.KEYCODE_MENU:
-            if (mActionBar != null && !mActionBar.isShowing()) {
-                mActionBar.show();
-                return true;
+
+            KeyEvent.KEYCODE_MENU -> if (mActionBar != null && mActionBar?.isShowing != true) {
+                mActionBar?.show()
+                return true
             } else {
-                return super.onKeyUp(keyCode, event);
+                return super.onKeyUp(keyCode, event)
             }
-        default:
-            return super.onKeyUp(keyCode, event);
+
+            else -> return super.onKeyUp(keyCode, event)
         }
     }
 
     // Called when the list of sessions changes
-    public void onUpdate() {
-        SessionList sessions = mTermSessions;
+    override fun onUpdate() {
+        val sessions = mTermSessions
         if (sessions == null) {
-            return;
+            return
         }
 
         if (sessions.isEmpty()) {
-            mStopServiceOnFinish = true;
-            finish();
-        } else if (sessions.size() < mViewFlipper.getChildCount()) {
-            for (int i = 0; i < mViewFlipper.getChildCount(); ++i) {
-                EmulatorView v = (EmulatorView) mViewFlipper.getChildAt(i);
-                if (!sessions.contains(v.getTermSession())) {
-                    v.onPause();
-                    mViewFlipper.removeView(v);
-                    --i;
+            mStopServiceOnFinish = true
+            finish()
+        } else mViewFlipper?.size?.let {
+            if (sessions.size < it) {
+                var i = 0
+                while (i < it) {
+                    val v = mViewFlipper?.getChildAt(i) as EmulatorView
+                    if (!sessions.contains(v.termSession)) {
+                        v.onPause()
+                        mViewFlipper?.removeView(v)
+                        --i
+                    }
+                    ++i
                 }
             }
         }
     }
 
-    private boolean canPaste() {
-        ClipboardManagerCompat clip = new ClipboardManagerCompat(getApplicationContext());
-        return clip.hasText();
+    private fun canPaste(): Boolean {
+        val clip = ClipboardManagerCompat(applicationContext)
+        return clip.hasText()
     }
 
-    private void doPreferences() {
-        startActivity(new Intent(this, TermPreferences.class));
+    private fun doPreferences() {
+        startActivity(Intent(this, TermPreferences::class.java))
     }
 
-    private void doResetTerminal() {
-        TermSession session = getCurrentTermSession();
-        if (session != null) {
-            session.reset();
-        }
+    private fun doResetTerminal() {
+        val session = this.currentTermSession
+        session?.reset()
     }
 
-    private void doEmailTranscript() {
-        TermSession session = getCurrentTermSession();
+    private fun doEmailTranscript() {
+        val session = this.currentTermSession
         if (session != null) {
             // Don't really want to supply an address, but
             // currently it's required, otherwise nobody
             // wants to handle the intent.
-            String addr = "user@example.com";
-            Intent intent =
-                    new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"
-                            + addr));
+            val addr = "user@example.com"
+            val intent =
+                Intent(
+                    Intent.ACTION_SENDTO, ("mailto:$addr").toUri()
+                )
 
-            String subject = getString(R.string.email_transcript_subject);
-            String title = session.getTitle();
+            var subject: String? = getString(R.string.email_transcript_subject)
+            val title = session.title
             if (title != null) {
-                subject = subject + " - " + title;
+                subject = "$subject - $title"
             }
-            intent.putExtra(Intent.EXTRA_SUBJECT, subject);
-            intent.putExtra(Intent.EXTRA_TEXT,
-                    session.getTranscriptText().trim());
+            intent.putExtra(Intent.EXTRA_SUBJECT, subject)
+            intent.putExtra(
+                Intent.EXTRA_TEXT,
+                session.transcriptText.trim { it <= ' ' })
             try {
-                startActivity(Intent.createChooser(intent,
-                        getString(R.string.email_transcript_chooser_title)));
-            } catch (ActivityNotFoundException e) {
-                Toast.makeText(this,
-                        R.string.email_transcript_no_email_activity_found,
-                        Toast.LENGTH_LONG).show();
+                startActivity(
+                    Intent.createChooser(
+                        intent,
+                        getString(R.string.email_transcript_chooser_title)
+                    )
+                )
+            } catch (e: ActivityNotFoundException) {
+                Toast.makeText(
+                    this,
+                    R.string.email_transcript_no_email_activity_found,
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
 
-    private void doCopyAll() {
-        ClipboardManagerCompat clip = new ClipboardManagerCompat(getApplicationContext());
-        clip.setText(getCurrentTermSession().getTranscriptText().trim());
+    private fun doCopyAll() {
+        val clip = ClipboardManagerCompat(applicationContext)
+        this.currentTermSession?.transcriptText?.let { clip.setText(it.trim { it <= ' ' }) }
     }
 
-    private void doPaste() {
+    private fun doPaste() {
         if (!canPaste()) {
-            return;
+            return
         }
-        ClipboardManagerCompat clip = new ClipboardManagerCompat(getApplicationContext());
-        CharSequence paste = clip.getText();
-        getCurrentTermSession().write(paste.toString());
+        val clip = ClipboardManagerCompat(applicationContext)
+        val paste = clip.getText()
+        this.currentTermSession?.write(paste.toString())
     }
 
-    private void doSendControlKey() {
-        getCurrentEmulatorView().sendControlKey();
+    private fun doSendControlKey() {
+        this.currentEmulatorView?.sendControlKey()
     }
 
-    private void doSendFnKey() {
-        getCurrentEmulatorView().sendFnKey();
+    private fun doSendFnKey() {
+        this.currentEmulatorView?.sendFnKey()
     }
 
-    private void doDocumentKeys() {
-        AlertDialog.Builder dialog = new AlertDialog.Builder(this);
-        Resources r = getResources();
-        dialog.setTitle(r.getString(R.string.control_key_dialog_title));
-        dialog.setMessage(
-            formatMessage(mSettings.getControlKeyId(), TermSettings.CONTROL_KEY_ID_NONE,
-                r, R.array.control_keys_short_names,
-                R.string.control_key_dialog_control_text,
-                R.string.control_key_dialog_control_disabled_text, "CTRLKEY")
-            + "\n\n" +
-            formatMessage(mSettings.getFnKeyId(), TermSettings.FN_KEY_ID_NONE,
-                r, R.array.fn_keys_short_names,
-                R.string.control_key_dialog_fn_text,
-                R.string.control_key_dialog_fn_disabled_text, "FNKEY"));
-         dialog.show();
-     }
-
-     private String formatMessage(int keyId, int disabledKeyId,
-         Resources r, int arrayId,
-         int enabledId,
-         int disabledId, String regex) {
-         if (keyId == disabledKeyId) {
-             return r.getString(disabledId);
-         }
-         String[] keyNames = r.getStringArray(arrayId);
-         String keyName = keyNames[keyId];
-         String template = r.getString(enabledId);
-         return template.replaceAll(regex, keyName);
+    private fun doDocumentKeys() {
+        val dialog = AlertDialog.Builder(this)
+        val r = getResources()
+        dialog.setTitle(r.getString(R.string.control_key_dialog_title))
+        mSettings?.controlKeyId?.let {
+            dialog.setMessage(
+                (formatMessage(
+                    it, TermSettings.CONTROL_KEY_ID_NONE,
+                    r, R.array.control_keys_short_names,
+                    R.string.control_key_dialog_control_text,
+                    R.string.control_key_dialog_control_disabled_text, "CTRLKEY"
+                )
+                        + "\n\n" +
+                        mSettings?.fnKeyId?.let {
+                            formatMessage(
+                                it, TermSettings.FN_KEY_ID_NONE,
+                                r, R.array.fn_keys_short_names,
+                                R.string.control_key_dialog_fn_text,
+                                R.string.control_key_dialog_fn_disabled_text, "FNKEY"
+                            )
+                        })
+            )
+        }
+        dialog.show()
     }
 
-    private void doToggleSoftKeyboard() {
-        InputMethodManager imm = (InputMethodManager)
-            getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.toggleSoftInput(InputMethodManager.SHOW_FORCED,0);
-
+    private fun formatMessage(
+        keyId: Int, disabledKeyId: Int,
+        r: Resources, arrayId: Int,
+        enabledId: Int,
+        disabledId: Int, regex: String
+    ): String {
+        if (keyId == disabledKeyId) {
+            return r.getString(disabledId)
+        }
+        val keyNames = r.getStringArray(arrayId)
+        val keyName = keyNames[keyId]
+        val template = r.getString(enabledId)
+        return template.replace(regex.toRegex(), keyName)
     }
 
-    private void doToggleWakeLock() {
-        if (mWakeLock.isHeld()) {
-            mWakeLock.release();
+    private fun doToggleSoftKeyboard() {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0)
+    }
+
+    private fun doToggleWakeLock() {
+        if (mWakeLock?.isHeld == true) {
+            mWakeLock?.release()
         } else {
-            mWakeLock.acquire();
+            mWakeLock?.acquire()
         }
-        invalidateOptionsMenu();
+        invalidateOptionsMenu()
     }
 
-    private void doToggleWifiLock() {
-        if (mWifiLock.isHeld()) {
-            mWifiLock.release();
+    private fun doToggleWifiLock() {
+        if (mWifiLock?.isHeld == true) {
+            mWifiLock?.release()
         } else {
-            mWifiLock.acquire();
+            mWifiLock?.acquire()
         }
-        invalidateOptionsMenu();
+        invalidateOptionsMenu()
     }
 
-    private void doToggleActionBar() {
-        ActionBar bar = mActionBar;
+    private fun doToggleActionBar() {
+        val bar = mActionBar
         if (bar == null) {
-            return;
+            return
         }
-        if (bar.isShowing()) {
-            bar.hide();
+        if (bar.isShowing) {
+            bar.hide()
         } else {
-            bar.show();
+            bar.show()
         }
     }
 
-    private void doUIToggle(int x, int y, int width, int height) {
-        switch (mActionBarMode) {
-        case TermSettings.ACTION_BAR_MODE_NONE:
-            if (mHaveFullHwKeyboard || y < height / 2) {
-                openOptionsMenu();
-                return;
+    private fun doUIToggle(x: Int, y: Int, width: Int, height: Int) {
+        when (mActionBarMode) {
+            TermSettings.ACTION_BAR_MODE_NONE -> if (mHaveFullHwKeyboard || y < height / 2) {
+                openOptionsMenu()
+                return
             } else {
-                doToggleSoftKeyboard();
+                doToggleSoftKeyboard()
             }
-            break;
-        case TermSettings.ACTION_BAR_MODE_ALWAYS_VISIBLE:
-            if (!mHaveFullHwKeyboard) {
-                doToggleSoftKeyboard();
+
+            TermSettings.ACTION_BAR_MODE_ALWAYS_VISIBLE -> if (!mHaveFullHwKeyboard) {
+                doToggleSoftKeyboard()
             }
-            break;
-        case TermSettings.ACTION_BAR_MODE_HIDES:
-            if (mHaveFullHwKeyboard || y < height / 2) {
-                doToggleActionBar();
-                return;
+
+            TermSettings.ACTION_BAR_MODE_HIDES -> if (mHaveFullHwKeyboard || y < height / 2) {
+                doToggleActionBar()
+                return
             } else {
-                doToggleSoftKeyboard();
+                doToggleSoftKeyboard()
             }
-            break;
         }
-        getCurrentEmulatorView().requestFocus();
+        this.currentEmulatorView?.requestFocus()
     }
 
     /**
@@ -1063,13 +1080,55 @@ public class Term extends Activity implements UpdateCallback, SharedPreferences.
      * Send a URL up to Android to be handled by a browser.
      * @param link The URL to be opened.
      */
-    private void execURL(String link)
-    {
-        Uri webLink = Uri.parse(link);
-        Intent openLink = new Intent(Intent.ACTION_VIEW, webLink);
-        PackageManager pm = getPackageManager();
-        List<ResolveInfo> handlers = pm.queryIntentActivities(openLink, 0);
-        if(!handlers.isEmpty())
-            startActivity(openLink);
+    private fun execURL(link: String?) {
+        val webLink = link?.toUri()
+        val openLink = Intent(Intent.ACTION_VIEW, webLink)
+        val pm = packageManager
+        val handlers = pm.queryIntentActivities(openLink, 0)
+        if (!handlers.isEmpty()) startActivity(openLink)
+    }
+
+    companion object {
+        /**
+         * The name of the ViewFlipper in the resources.
+         */
+        private val VIEW_FLIPPER = R.id.view_flipper
+
+        private const val SELECT_TEXT_ID = 0
+        private const val COPY_ALL_ID = 1
+        private const val PASTE_ID = 2
+        private const val SEND_CONTROL_KEY_ID = 3
+        private const val SEND_FN_KEY_ID = 4
+
+        const val REQUEST_CHOOSE_WINDOW: Int = 1
+        const val EXTRA_WINDOW_ID: String = "jackpal.androidterm.window_id"
+
+        // Available on API 12 and later
+        private const val WIFI_MODE_FULL_HIGH_PERF = 3
+
+        private const val ACTION_PATH_BROADCAST = "jackpal.androidterm.broadcast.APPEND_TO_PATH"
+        private const val ACTION_PATH_PREPEND_BROADCAST =
+            "jackpal.androidterm.broadcast.PREPEND_TO_PATH"
+        private const val PERMISSION_PATH_BROADCAST =
+            "jackpal.androidterm.permission.APPEND_TO_PATH"
+        private const val PERMISSION_PATH_PREPEND_BROADCAST =
+            "jackpal.androidterm.permission.PREPEND_TO_PATH"
+
+        // Available on API 12 and later
+        private const val FLAG_INCLUDE_STOPPED_PACKAGES = 0x20
+
+        @Throws(IOException::class)
+        fun createTermSession(
+            context: Context,
+            settings: TermSettings,
+            initialCommand: String?
+        ): TermSession {
+            val session: GenericTermSession = ShellTermSession(settings, initialCommand)
+            // XXX We should really be able to fetch this from within TermSession
+            session.setProcessExitMessage(context.getString(R.string.process_exit_message))
+
+            return session
+        }
     }
 }
+

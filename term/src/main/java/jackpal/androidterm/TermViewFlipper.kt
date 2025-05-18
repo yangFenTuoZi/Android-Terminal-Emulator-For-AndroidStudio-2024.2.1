@@ -14,290 +14,219 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import java.util.Iterator;
-import java.util.LinkedList;
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Rect
+import android.os.Handler
+import android.util.AttributeSet
+import android.view.Gravity
+import android.view.View
+import android.widget.Toast
+import android.widget.ViewFlipper
+import androidx.core.view.isEmpty
+import jackpal.androidterm.emulatorview.EmulatorView
+import jackpal.androidterm.emulatorview.UpdateCallback
+import jackpal.androidterm.util.TermSettings
+import java.util.LinkedList
 
-import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Rect;
-import android.os.Handler;
-import android.util.AttributeSet;
-import android.view.Gravity;
-import android.view.View;
-import android.widget.Toast;
-import android.widget.ViewFlipper;
-
-import jackpal.androidterm.emulatorview.EmulatorView;
-import jackpal.androidterm.emulatorview.TermSession;
-import jackpal.androidterm.emulatorview.UpdateCallback;
-
-import jackpal.androidterm.util.TermSettings;
-
-public class TermViewFlipper extends ViewFlipper implements Iterable<View> {
-    private Context context;
-    private Toast mToast;
-    private LinkedList<UpdateCallback> callbacks;
-    private boolean mStatusBarVisible = false;
-
-    private int mCurWidth;
-    private int mCurHeight;
-    private Rect mVisibleRect = new Rect();
-    private Rect mWindowRect = new Rect();
-    private LayoutParams mChildParams = null;
-    private boolean mRedoLayout = false;
-
-    /**
-     * True if we must poll to discover if the view has changed size.
-     * This is the only known way to detect the view changing size due to
-     * the IME being shown or hidden in API level <= 7.
-     */
-    private final boolean mbPollForWindowSizeChange = false;
-    private static final int SCREEN_CHECK_PERIOD = 1000;
-    private final Handler mHandler = new Handler();
-    private Runnable mCheckSize = new Runnable() {
-            public void run() {
-                adjustChildSize();
-                mHandler.postDelayed(this, SCREEN_CHECK_PERIOD);
-            }
-        };
-
-    class ViewFlipperIterator implements Iterator<View> {
-        int pos = 0;
-
-        public boolean hasNext() {
-            return (pos < getChildCount());
-        }
-
-        public View next() {
-            return getChildAt(pos++);
-        }
-
-        public void remove() {
-            throw new UnsupportedOperationException();
+class TermViewFlipper : ViewFlipper, Iterable<View> {
+    private var contextRef: Context
+    private var mToast: Toast? = null
+    private val callbacks = LinkedList<UpdateCallback>()
+    private var mStatusBarVisible = false
+    private var mCurWidth = 0
+    private var mCurHeight = 0
+    private val mVisibleRect = Rect()
+    private val mWindowRect = Rect()
+    private var mChildParams: LayoutParams? = null
+    private var mRedoLayout = false
+    private val mbPollForWindowSizeChange = false
+    private val mHandler = Handler()
+    private val SCREEN_CHECK_PERIOD = 1000
+    private val mCheckSize = object : Runnable {
+        override fun run() {
+            adjustChildSize()
+            mHandler.postDelayed(this, SCREEN_CHECK_PERIOD.toLong())
         }
     }
 
-    public TermViewFlipper(Context context) {
-        super(context);
-        commonConstructor(context);
+    constructor(context: Context) : super(context) {
+        contextRef = context
+        commonConstructor(context)
     }
 
-    public TermViewFlipper(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        commonConstructor(context);
+    constructor(context: Context, attrs: AttributeSet) : super(context, attrs) {
+        contextRef = context
+        commonConstructor(context)
     }
 
-    private void commonConstructor(Context context) {
-        this.context = context;
-        callbacks = new LinkedList<UpdateCallback>();
-
-        updateVisibleRect();
-        Rect visible = mVisibleRect;
-        mChildParams = new LayoutParams(visible.width(), visible.height(),
-            Gravity.TOP|Gravity.LEFT);
+    private fun commonConstructor(context: Context) {
+        updateVisibleRect()
+        val visible = mVisibleRect
+        mChildParams = LayoutParams(visible.width(), visible.height(), Gravity.TOP or Gravity.START)
     }
 
-    public void updatePrefs(TermSettings settings) {
-        boolean statusBarVisible = settings.showStatusBar();
-        int[] colorScheme = settings.getColorScheme();
-        setBackgroundColor(colorScheme[1]);
-        mStatusBarVisible = statusBarVisible;
+    fun updatePrefs(settings: TermSettings) {
+        val statusBarVisible = settings.showStatusBar()
+        val colorScheme = settings.colorScheme
+        setBackgroundColor(colorScheme[1])
+        mStatusBarVisible = statusBarVisible
     }
 
-    public Iterator<View> iterator() {
-        return new ViewFlipperIterator();
-    }
-
-    public void addCallback(UpdateCallback callback) {
-        callbacks.add(callback);
-    }
-
-    public void removeCallback(UpdateCallback callback) {
-        callbacks.remove(callback);
-    }
-
-    private void notifyChange() {
-        for (UpdateCallback callback : callbacks) {
-            callback.onUpdate();
+    override fun iterator(): Iterator<View> {
+        return object : Iterator<View> {
+            var pos = 0
+            override fun hasNext(): Boolean = pos < childCount
+            override fun next(): View = getChildAt(pos++)
         }
     }
 
-    public void onPause() {
+    fun addCallback(callback: UpdateCallback) {
+        callbacks.add(callback)
+    }
+
+    fun removeCallback(callback: UpdateCallback) {
+        callbacks.remove(callback)
+    }
+
+    private fun notifyChange() {
+        for (callback in callbacks) {
+            callback.onUpdate()
+        }
+    }
+
+    fun onPause() {
         if (mbPollForWindowSizeChange) {
-            mHandler.removeCallbacks(mCheckSize);
+            mHandler.removeCallbacks(mCheckSize)
         }
-        pauseCurrentView();
+        pauseCurrentView()
     }
 
-    public void onResume() {
+    fun onResume() {
         if (mbPollForWindowSizeChange) {
-            mCheckSize.run();
+            mCheckSize.run()
         }
-        resumeCurrentView();
+        resumeCurrentView()
     }
 
-    public void pauseCurrentView() {
-        EmulatorView view = (EmulatorView) getCurrentView();
-        if (view == null) {
-            return;
-        }
-        view.onPause();
+    fun pauseCurrentView() {
+        val view = currentView as? EmulatorView ?: return
+        view.onPause()
     }
 
-    public void resumeCurrentView() {
-        EmulatorView view = (EmulatorView) getCurrentView();
-        if (view == null) {
-            return;
-        }
-        view.onResume();
-        view.requestFocus();
+    fun resumeCurrentView() {
+        val view = currentView as? EmulatorView ?: return
+        view.onResume()
+        view.requestFocus()
     }
 
-    private void showTitle() {
-        if (getChildCount() == 0) {
-            return;
+    private fun showTitle() {
+        if (isEmpty()) return
+        val view = currentView as? EmulatorView ?: return
+        val session = view.termSession ?: return
+        var title = contextRef.getString(R.string.window_title, displayedChild + 1)
+        if (session is GenericTermSession) {
+            title = session.getTitle(title)
         }
-
-        EmulatorView view = (EmulatorView) getCurrentView();
-        if (view == null) {
-            return;
-        }
-        TermSession session = view.getTermSession();
-        if (session == null) {
-            return;
-        }
-
-        String title = context.getString(R.string.window_title,getDisplayedChild()+1);
-        if (session instanceof GenericTermSession) {
-            title = ((GenericTermSession) session).getTitle(title);
-        }
-
         if (mToast == null) {
-            mToast = Toast.makeText(context, title, Toast.LENGTH_SHORT);
-            mToast.setGravity(Gravity.CENTER, 0, 0);
+            mToast = Toast.makeText(contextRef, title, Toast.LENGTH_SHORT)
+            mToast?.setGravity(Gravity.CENTER, 0, 0)
         } else {
-            mToast.setText(title);
+            mToast?.setText(title)
         }
-        mToast.show();
+        mToast?.show()
     }
 
-    @Override
-    public void showPrevious() {
-        pauseCurrentView();
-        super.showPrevious();
-        showTitle();
-        resumeCurrentView();
-        notifyChange();
+    override fun showPrevious() {
+        pauseCurrentView()
+        super.showPrevious()
+        showTitle()
+        resumeCurrentView()
+        notifyChange()
     }
 
-    @Override
-    public void showNext() {
-        pauseCurrentView();
-        super.showNext();
-        showTitle();
-        resumeCurrentView();
-        notifyChange();
+    override fun showNext() {
+        pauseCurrentView()
+        super.showNext()
+        showTitle()
+        resumeCurrentView()
+        notifyChange()
     }
 
-    @Override
-    public void setDisplayedChild(int position) {
-        pauseCurrentView();
-        super.setDisplayedChild(position);
-        showTitle();
-        resumeCurrentView();
-        notifyChange();
+    override fun setDisplayedChild(position: Int) {
+        pauseCurrentView()
+        super.setDisplayedChild(position)
+        showTitle()
+        resumeCurrentView()
+        notifyChange()
     }
 
-    @Override
-    public void addView(View v, int index) {
-        super.addView(v, index, mChildParams);
+    override fun addView(v: View, index: Int) {
+        super.addView(v, index, mChildParams)
     }
 
-    @Override
-    public void addView(View v) {
-        super.addView(v, mChildParams);
+    override fun addView(v: View) {
+        super.addView(v, mChildParams)
     }
 
-    private void updateVisibleRect() {
-        Rect visible = mVisibleRect;
-        Rect window = mWindowRect;
-
-        /* Get rectangle representing visible area of this view, as seen by
-           the activity (takes other views in the layout into account, but
-           not space used by the IME) */
-        getGlobalVisibleRect(visible);
-
-        /* Get rectangle representing visible area of this window (takes
-           IME into account, but not other views in the layout) */
-        getWindowVisibleDisplayFrame(window);
-        /* Work around bug in getWindowVisibleDisplayFrame on API < 10, and
-           avoid a distracting height change as status bar hides otherwise */
+    private fun updateVisibleRect() {
+        val visible = mVisibleRect
+        val window = mWindowRect
+        getGlobalVisibleRect(visible)
+        getWindowVisibleDisplayFrame(window)
         if (!mStatusBarVisible) {
-            window.top = 0;
+            window.top = 0
         }
-
-        // Clip visible rectangle's top to the visible portion of the window
         if (visible.width() == 0 && visible.height() == 0) {
-            visible.left = window.left;
-            visible.top = window.top;
+            visible.left = window.left
+            visible.top = window.top
         } else {
             if (visible.left < window.left) {
-                visible.left = window.left;
+                visible.left = window.left
             }
             if (visible.top < window.top) {
-                visible.top = window.top;
+                visible.top = window.top
             }
         }
-        // Always set the bottom of the rectangle to the window bottom
-        /* XXX This breaks with a split action bar, but if we don't do this,
-           it's possible that the view won't resize correctly on IME hide */
-        visible.right = window.right;
-        visible.bottom = window.bottom;
+        visible.right = window.right
+        visible.bottom = window.bottom
     }
 
-    private void adjustChildSize() {
-        updateVisibleRect();
-        Rect visible = mVisibleRect;
-        int width = visible.width();
-        int height = visible.height();
-
+    private fun adjustChildSize() {
+        updateVisibleRect()
+        val visible = mVisibleRect
+        val width = visible.width()
+        val height = visible.height()
         if (mCurWidth != width || mCurHeight != height) {
-            mCurWidth = width;
-            mCurHeight = height;
-
-            LayoutParams params = mChildParams;
-            params.width = width;
-            params.height = height;
-            for (View v : this) {
-                updateViewLayout(v, params);
+            mCurWidth = width
+            mCurHeight = height
+            val params = mChildParams
+            if (params != null) {
+                params.width = width
+                params.height = height
+                for (v in this) {
+                    updateViewLayout(v, params)
+                }
             }
-            mRedoLayout = true;
-
-            EmulatorView currentView = (EmulatorView) getCurrentView();
-            if (currentView != null) {
-                currentView.updateSize(false);
-            }
+            mRedoLayout = true
+            val currentView = currentView as? EmulatorView
+            currentView?.updateSize(false)
         }
     }
 
-    /**
-     * Called when the view changes size.
-     * (Note: Not always called on Android < 2.2)
-     */
-    @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        adjustChildSize();
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        adjustChildSize()
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
-    @Override
-    protected void onDraw(Canvas canvas) {
+    override fun onDraw(canvas: Canvas) {
         if (mRedoLayout) {
-            requestLayout();
-            mRedoLayout = false;
+            requestLayout()
+            mRedoLayout = false
         }
-        super.onDraw(canvas);
+        super.onDraw(canvas)
     }
 }
+

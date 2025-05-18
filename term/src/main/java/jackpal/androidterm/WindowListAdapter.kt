@@ -14,101 +14,88 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import android.app.Activity;
-import android.content.Context;
-import android.content.ContextWrapper;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.BaseAdapter;
-import android.widget.TextView;
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.View
+import android.view.ViewGroup
+import android.widget.BaseAdapter
+import android.widget.TextView
+import jackpal.androidterm.emulatorview.UpdateCallback
+import jackpal.androidterm.util.SessionList
 
-import jackpal.androidterm.emulatorview.TermSession;
-import jackpal.androidterm.emulatorview.UpdateCallback;
+open class WindowListAdapter(sessions: SessionList?) : BaseAdapter(), UpdateCallback {
+    private var mSessions: SessionList? = null
 
-import jackpal.androidterm.util.SessionList;
-
-public class WindowListAdapter extends BaseAdapter implements UpdateCallback {
-    private SessionList mSessions;
-
-    public WindowListAdapter(SessionList sessions) {
-        setSessions(sessions);
+    init {
+        setSessions(sessions)
     }
 
-    public void setSessions(SessionList sessions) {
-        mSessions = sessions;
-
+    fun setSessions(sessions: SessionList?) {
+        mSessions = sessions
         if (sessions != null) {
-            sessions.addCallback(this);
-            sessions.addTitleChangedListener(this);
+            sessions.addCallback(this)
+            sessions.addTitleChangedListener(this)
         } else {
-            onUpdate();
+            onUpdate()
         }
     }
 
-    public int getCount() {
-        if (mSessions != null) {
-            return mSessions.size();
+    override fun getCount(): Int {
+        return mSessions?.size ?: 0
+    }
+
+    override fun getItem(position: Int): Any? {
+        return mSessions?.get(position)
+    }
+
+    override fun getItemId(position: Int): Long {
+        return position.toLong()
+    }
+
+    protected fun getSessionTitle(position: Int, defaultTitle: String): String {
+        val session = mSessions?.get(position)
+        return if (session is GenericTermSession) {
+            session.getTitle(defaultTitle)
         } else {
-            return 0;
+            defaultTitle
         }
     }
 
-    public Object getItem(int position) {
-        return mSessions.get(position);
-    }
-
-    public long getItemId(int position) {
-        return position;
-    }
-
-    protected String getSessionTitle(int position, String defaultTitle) {
-        TermSession session = mSessions.get(position);
-        if (session != null && session instanceof GenericTermSession) {
-            return ((GenericTermSession) session).getTitle(defaultTitle);
-        } else {
-            return defaultTitle;
-        }
-    }
-
-    public View getView(int position, View convertView, ViewGroup parent) {
-        Activity act = findActivityFromContext(parent.getContext());
-        View child = act.getLayoutInflater().inflate(R.layout.window_list_item, parent, false);
-        View close = child.findViewById(R.id.window_list_close);
-
-        TextView label = (TextView) child.findViewById(R.id.window_list_label);
-        String defaultTitle = act.getString(R.string.window_title, position+1);
-        label.setText(getSessionTitle(position, defaultTitle));
-
-        final SessionList sessions = mSessions;
-        final int closePosition = position;
-        close.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                TermSession session = sessions.remove(closePosition);
-                if (session != null) {
-                    session.finish();
-                    notifyDataSetChanged();
-                }
+    override fun getView(position: Int, convertView: View, parent: ViewGroup): View {
+        val act = findActivityFromContext(parent.context)
+        val child = act?.layoutInflater?.inflate(R.layout.window_list_item, parent, false)
+        val close = child?.findViewById<View>(R.id.window_list_close)
+        val label = child?.findViewById<TextView>(R.id.window_list_label)
+        val defaultTitle = act?.getString(R.string.window_title, position + 1) ?: "Window ${position + 1}"
+        label?.text = getSessionTitle(position, defaultTitle)
+        val sessions = mSessions
+        val closePosition = position
+        close?.setOnClickListener {
+            val session = sessions?.removeAt(closePosition)
+            if (session != null) {
+                session.finish()
+                notifyDataSetChanged()
             }
-        });
-
-        return child;
-    }
-
-    public void onUpdate() {
-        notifyDataSetChanged();
-    }
-
-    private static Activity findActivityFromContext(Context context) {
-        if (context == null) {
-            return null;
-        } else if (context instanceof Activity) {
-            return (Activity) context;
-        } else if (context instanceof ContextWrapper) {
-            ContextWrapper cw = (ContextWrapper) context;
-            return findActivityFromContext(cw.getBaseContext());
         }
-        return null;
+        return child!!
+    }
+
+    override fun onUpdate() {
+        notifyDataSetChanged()
+    }
+
+    companion object {
+        private fun findActivityFromContext(context: Context?): Activity? {
+            return when (context) {
+                null -> null
+                is Activity -> context
+                is ContextWrapper -> findActivityFromContext(context.baseContext)
+                else -> null
+            }
+        }
     }
 }
+

@@ -14,29 +14,29 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import android.os.Bundle;
-import android.preference.PreferenceActivity;
-import android.view.MenuItem;
+import android.os.Bundle
+import android.preference.PreferenceActivity
+import android.view.MenuItem
 
-public class TermPreferences extends PreferenceActivity {
-    private static final String ACTIONBAR_KEY = "actionbar";
-    private static final String CATEGORY_SCREEN_KEY = "screen";
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        addPreferencesFromResource(R.xml.preferences);
+class TermPreferences : PreferenceActivity() {
+    companion object {
+        private const val ACTIONBAR_KEY = "actionbar"
+        private const val CATEGORY_SCREEN_KEY = "screen"
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {// Action bar home button selected
-            finish();
-            return true;
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        addPreferencesFromResource(R.xml.preferences)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == android.R.id.home) {
+            finish()
+            return true
         }
-        return super.onOptionsItemSelected(item);
+        return super.onOptionsItemSelected(item)
     }
 }
+

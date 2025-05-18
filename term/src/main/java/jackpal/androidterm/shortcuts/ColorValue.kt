@@ -1,215 +1,188 @@
-//From the desk of Frank P. Westlake; public domain.
-package jackpal.androidterm.shortcuts;
+// ...existing code...
+package jackpal.androidterm.shortcuts
 
-import jackpal.androidterm.R;
+import android.app.AlertDialog
+import android.content.Context
+import android.content.DialogInterface
+import android.graphics.Typeface
+import android.view.Gravity
+import android.widget.CheckBox
+import android.widget.CompoundButton
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.SeekBar
+import android.widget.TextView
+import jackpal.androidterm.R
 
-import android.app.        AlertDialog;
-import android.content.    Context;
-import android.content.    DialogInterface;
-import android.graphics.   Typeface;
-import android.view.       Gravity;
-import android.widget.     CheckBox;
-import android.widget.     CompoundButton;
-import android.widget.     ImageView;
-import android.widget.     LinearLayout;
-import android.widget.     ScrollView;
-import android.widget.     SeekBar;
-import android.widget.     TextView;
-import android.widget.     EditText;
+class ColorValue(
+    private val context: Context,
+    private val imgview: ImageView,
+    private val result: Array<String>
+) : CompoundButton.OnCheckedChangeListener {
+    private var value: EditText? = null
+    private val color = intArrayOf(0xFF, 0, 0, 0)
+    private var started = false
+    private lateinit var builder: AlertDialog.Builder
+    private var barLock = false
+    private val locks = booleanArrayOf(false, false, false, false)
+    private val MP = LinearLayout.LayoutParams.MATCH_PARENT
+    private val WC = LinearLayout.LayoutParams.WRAP_CONTENT
+    private var imgtext: String = result[0]
 
-//////////////////////////////////////////////////////////////////////
-public class      ColorValue
-       implements CompoundButton.OnCheckedChangeListener
-{
-  private final Context             context;
-  private       EditText            value;
-  private final int[]               color=      {0xFF, 0, 0, 0};
-  private       boolean             started=    false;
-  private       AlertDialog.Builder builder;
-  private       boolean             barLock=    false;
-  private final boolean[]           locks=      {false, false, false, false};
-  private final int                 FP=         LinearLayout.LayoutParams.FILL_PARENT;
-  private final int                 WC=         LinearLayout.LayoutParams.WRAP_CONTENT;
-  private final ImageView           imgview;
-  private final String              result[];
-  private       String              imgtext="";
+    init {
+        colorValue()
+    }
 
-  ////////////////////////////////////////////////////////////
-  public ColorValue(Context context, final ImageView imgview, final String result[])
-  {
-    this.context=context;
-    this.imgtext=result[0];
-    this.imgview=imgview;
-    this.result=result;
-    colorValue();
-  }
-  public void colorValue()
-  {
-    final int     arraySizes=  4;
-    builder=      new AlertDialog.Builder(context);
-    LinearLayout  lv=new LinearLayout(context);
-                  lv.setOrientation(LinearLayout.VERTICAL);
-    String  lab[]={
-      context.getString(R.string.colorvalue_letter_alpha) +" " //"α "
-    , context.getString(R.string.colorvalue_letter_red)   +" " //"R "
-    , context.getString(R.string.colorvalue_letter_green) +" " //"G "
-    , context.getString(R.string.colorvalue_letter_blue)  +" " //"B "
-    };
-    int     clr[]={0xFFFFFFFF, 0xFFFF0000, 0xFF00FF00, 0xFF0000FF};
-    for(int i=0, n=(Integer)imgview.getTag(); i<arraySizes; i++)  color[i]=(n>>(24-i*8))&0xFF;
-    TextView  lt=new TextView(context);
-              lt.setText(context.getString(R.string.colorvalue_label_lock_button_column));//"LOCK");
-              lt.setPadding(lt.getPaddingLeft(), lt.getPaddingTop(), 5, lt.getPaddingBottom());
-              lt.setGravity(Gravity.RIGHT);
-    value=new EditText(context);
-    value.setText(imgtext);
-    value.setSingleLine(false);
-    value.setGravity(Gravity.CENTER);
-    value.setTextColor((Integer)imgview.getTag());
-    value.setBackgroundColor((0xFF<<24)|0x007799);
-    LinearLayout  vh=new LinearLayout(context);
-                  vh.setOrientation(LinearLayout.HORIZONTAL);
-                  vh.setGravity(Gravity.CENTER_HORIZONTAL);
-                  vh.addView(value);
-                  value.setHint(context.getString(R.string.colorvalue_icon_text_entry_hint));//"Enter icon text");
-    lv.addView(vh);
-    lv.addView(lt);
-    final SeekBar     sb[]=        new SeekBar[arraySizes+1];
-    final CheckBox    lk[]=        new CheckBox[arraySizes];
-    final TextView    hexWindow[]= new TextView[arraySizes];
-    for(int i=0; i<arraySizes; i++)
-    {
-      LinearLayout    lh=new LinearLayout(context);
-                      lh.setGravity(Gravity.CENTER_VERTICAL);
-      final TextView  tv=new TextView(context);
-                      tv.setTypeface(Typeface.MONOSPACE);
-                      tv.setText(lab[i]);
-                      tv.setTextColor(clr[i]);
-      sb[i]=new SeekBar(context);
-      sb[i].setMax(0xFF);
-      sb[i].setProgress(color[i]);
-      sb[i].setSecondaryProgress(color[i]);
-      sb[i].setTag(i);
-      sb[i].setBackgroundColor(0xFF<<24|(color[i]<<(24-i*8)));
-      sb[i].setLayoutParams(new LinearLayout.LayoutParams(WC, WC, 1));
-      sb[i].setOnSeekBarChangeListener(
-        new SeekBar.OnSeekBarChangeListener()
-        {
-          public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser)
-          {
-            doProgressChanged(seekBar, progress, fromUser);
-          }
-          private void doProgressChanged(SeekBar seekBar, int progress, boolean fromUser)
-          {
-            if(fromUser && started)
-            {
-              int  me=(Integer)seekBar.getTag();
-              int  k=(color[0]<<24)|(color[1]<<16)|(color[2]<<8)|color[3];
-              value.setTextColor(k);
-              int  start, end;
-              if(barLock && locks[me])  {start=0;  end=arraySizes-1;}
-              else  start=end=(Integer)seekBar.getTag();
-              for(int  i=start; i<=end; i++)
-              {
-                if(i==me || (barLock && locks[i]))
-                {
-                  color[i]=progress;
-                  toHexWindow(hexWindow[i], color[i]);
-                  sb[i].setBackgroundColor(0xFF<<24|(progress<<(24-i*8)));
-                  sb[i].setProgress(progress);
+    fun colorValue() {
+        val arraySizes = 4
+        builder = AlertDialog.Builder(context)
+        val lv = LinearLayout(context)
+        lv.orientation = LinearLayout.VERTICAL
+        val lab = arrayOf(
+            context.getString(R.string.colorvalue_letter_alpha) + " ",
+            context.getString(R.string.colorvalue_letter_red) + " ",
+            context.getString(R.string.colorvalue_letter_green) + " ",
+            context.getString(R.string.colorvalue_letter_blue) + " "
+        )
+        val clr = intArrayOf(0xFFFFFFFF.toInt(), 0xFFFF0000.toInt(), 0xFF00FF00.toInt(), 0xFF0000FF.toInt())
+        val n = imgview.tag as Int
+        for (i in 0 until arraySizes) color[i] = (n shr (24 - i * 8)) and 0xFF
+        val lt = TextView(context)
+        lt.text = context.getString(R.string.colorvalue_label_lock_button_column)
+        lt.setPadding(lt.paddingLeft, lt.paddingTop, 5, lt.paddingBottom)
+        lt.gravity = Gravity.END
+        value = EditText(context)
+        value!!.setText(imgtext)
+        value!!.setSingleLine(false)
+        value!!.gravity = Gravity.CENTER
+        value!!.setTextColor(imgview.tag as Int)
+        value!!.setBackgroundColor((0xFF shl 24) or 0x007799)
+        val vh = LinearLayout(context)
+        vh.orientation = LinearLayout.HORIZONTAL
+        vh.gravity = Gravity.CENTER_HORIZONTAL
+        vh.addView(value)
+        value!!.hint = context.getString(R.string.colorvalue_icon_text_entry_hint)
+        lv.addView(vh)
+        lv.addView(lt)
+        val sb = Array(arraySizes + 1) { SeekBar(context) }
+        val lk = Array(arraySizes) { CheckBox(context) }
+        val hexWindow = Array(arraySizes) { TextView(context) }
+        for (i in 0 until arraySizes) {
+            val lh = LinearLayout(context)
+            lh.gravity = Gravity.CENTER_VERTICAL
+            val tv = TextView(context)
+            tv.typeface = Typeface.MONOSPACE
+            tv.text = lab[i]
+            tv.setTextColor(clr[i])
+            sb[i] = SeekBar(context)
+            sb[i].max = 0xFF
+            sb[i].progress = color[i]
+            sb[i].secondaryProgress = color[i]
+            sb[i].tag = i
+            sb[i].setBackgroundColor((0xFF shl 24) or (color[i] shl (24 - i * 8)))
+            sb[i].layoutParams = LinearLayout.LayoutParams(WC, WC, 1f)
+            sb[i].setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                    doProgressChanged(seekBar, progress, fromUser)
                 }
-              }
+                private fun doProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                    if (fromUser && started) {
+                        val me = seekBar.tag as Int
+                        val k = (color[0] shl 24) or (color[1] shl 16) or (color[2] shl 8) or color[3]
+                        value!!.setTextColor(k)
+                        val (start, end) = if (barLock && locks[me]) 0 to arraySizes - 1 else me to me
+                        for (i in start..end) {
+                            if (i == me || (barLock && locks[i])) {
+                                color[i] = progress
+                                toHexWindow(hexWindow[i], color[i])
+                                sb[i].setBackgroundColor((0xFF shl 24) or (progress shl (24 - i * 8)))
+                                sb[i].progress = progress
+                            }
+                        }
+                    }
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar) {
+                    doProgressChanged(seekBar, seekBar.progress, true)
+                }
+                override fun onStopTrackingTouch(seekBar: SeekBar) {
+                    doProgressChanged(seekBar, seekBar.progress, true)
+                }
+            })
+            lk[i] = CheckBox(context)
+            lk[i].layoutParams = LinearLayout.LayoutParams(WC, WC, 0f)
+            lk[i].setOnCheckedChangeListener(this)
+            lk[i].tag = i
+            lh.addView(tv)
+            lh.addView(sb[i])
+            lh.addView(lk[i])
+            lv.addView(lh, MP, WC)
+        }
+        run {
+            val lh = LinearLayout(context)
+            lh.gravity = Gravity.CENTER
+            for (i in 0 until arraySizes) {
+                hexWindow[i] = TextView(context)
+                toHexWindow(hexWindow[i], color[i])
+                lh.addView(hexWindow[i])
             }
-          }
-          public void onStartTrackingTouch(SeekBar seekBar)
-          {
-            doProgressChanged(seekBar, seekBar.getProgress(), true);
-          }
-          public void  onStopTrackingTouch(SeekBar seekBar)
-          {
-            doProgressChanged(seekBar, seekBar.getProgress(), true);
-          }
+            lv.addView(lh)
         }
-      );
-      lk[i]=new CheckBox(context);
-      lk[i].setLayoutParams(new LinearLayout.LayoutParams(WC, WC, 0));
-      lk[i].setOnCheckedChangeListener(this);
-      lk[i].setTag(i);
-      lh.addView(tv);
-      lh.addView(sb[i]);
-      lh.addView(lk[i]);
-      lv.addView(lh, FP, WC);
-    }
-{//Evaluating hex windows.
-  LinearLayout    lh=new LinearLayout(context);
-  lh.setGravity(Gravity.CENTER);
-  for(int i=0; i<arraySizes; i++)
-  {
-    hexWindow[i]=new TextView(context);
-    toHexWindow(hexWindow[i], color[i]);
-    lh.addView(hexWindow[i]);
-  }
-  lv.addView(lh);
-}//Evaluating hex windows.
-    ScrollView    sv=new ScrollView(context);
-                  sv.addView(lv);
-    builder.setView(sv);
-    DialogInterface.OnClickListener ocl=new DialogInterface.OnClickListener()
-    {
-      public void onClick(DialogInterface dialog, int which)
-      {
-        buttonHit(which, (color[0]<<24)|(color[1]<<16)|(color[2]<<8)|color[3]);
-      }
-    };
-    String Title = context.getString(R.string.addshortcut_make_text_icon);
-    builder.setTitle(Title);
-    builder.setPositiveButton(android.R.string.yes,    ocl);
-    builder.setNegativeButton(android.R.string.cancel, ocl);
-    builder.show();
-    started=true;
-  }
-  //////////////////////////////////////////////////////////////////////
-  public void toHexWindow(TextView tv, int k)
-  {
-    String  HEX="0123456789ABCDEF";
-    String  s="";
-    int   n=8;
-    k&=(1L<<8)-1L;
-    for(n-=4; n>=0; n-=4) s+=HEX.charAt((k>>n)&0xF);
-    tv.setText(s);
-  }
-  ////////////////////////////////////////////////////////////
-  public void onCheckedChanged(CompoundButton buttonView, boolean isChecked)
-  {
-    int  view=(Integer)buttonView.getTag();
-    locks[view]=isChecked;
-    barLock=false;
-    for(int i=0; i<locks.length; i++)  if(locks[i])  barLock=true;
-  }
-  ////////////////////////////////////////////////////////////
-  private void buttonHit(int hit, int color)
-  {
-    switch(hit)
-    {
-      case AlertDialog.BUTTON_NEGATIVE:  //  CANCEL
-        return;
-      case AlertDialog.BUTTON_POSITIVE:  //  OK == set
-        imgtext=value.getText().toString();
-        result[1]=imgtext;
-        imgview.setTag(color);
-        if(!imgtext.equals(""))
-        {
-          imgview.setImageBitmap(
-            TextIcon.getTextIcon(
-              imgtext
-            , color
-            , 96
-            , 96
-            )
-          );
+        val sv = ScrollView(context)
+        sv.addView(lv)
+        builder.setView(sv)
+        val ocl = DialogInterface.OnClickListener { dialog, which ->
+            buttonHit(which, (color[0] shl 24) or (color[1] shl 16) or (color[2] shl 8) or color[3])
         }
-        return;
+        val title = context.getString(R.string.addshortcut_make_text_icon)
+        builder.setTitle(title)
+        builder.setPositiveButton(android.R.string.ok, ocl)
+        builder.setNegativeButton(android.R.string.cancel, ocl)
+        builder.show()
+        started = true
     }
-  }
-  ////////////////////////////////////////////////////////////
+
+    fun toHexWindow(tv: TextView, k: Int) {
+        val HEX = "0123456789ABCDEF"
+        var s = ""
+        var n = 8
+        var k2 = k and ((1L shl 8) - 1L).toInt()
+        n -= 4
+        while (n >= 0) {
+            s += HEX[(k2 shr n) and 0xF]
+            n -= 4
+        }
+        tv.text = s
+    }
+
+    override fun onCheckedChanged(buttonView: CompoundButton, isChecked: Boolean) {
+        val view = buttonView.tag as Int
+        locks[view] = isChecked
+        barLock = locks.any { it }
+    }
+
+    private fun buttonHit(hit: Int, color: Int) {
+        when (hit) {
+            AlertDialog.BUTTON_NEGATIVE -> return
+            AlertDialog.BUTTON_POSITIVE -> {
+                imgtext = value?.text?.toString() ?: ""
+                result[1] = imgtext
+                imgview.tag = color
+                if (imgtext.isNotEmpty()) {
+                    imgview.setImageBitmap(
+                        TextIcon.getTextIcon(
+                            imgtext,
+                            color,
+                            96,
+                            96
+                        )
+                    )
+                }
+                return
+            }
+        }
+    }
 }
+// ...existing code...
+

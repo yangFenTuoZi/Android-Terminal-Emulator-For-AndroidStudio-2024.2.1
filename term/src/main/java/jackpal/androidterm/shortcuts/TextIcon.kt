@@ -1,68 +1,61 @@
-package jackpal.androidterm.shortcuts;
+package jackpal.androidterm.shortcuts
 
-import android.graphics.  Bitmap;
-import android.graphics.  Bitmap.Config;
-import android.graphics.  Canvas;
-import android.graphics.  Paint;
-import android.graphics.  Paint.Align;
-import android.graphics.  Rect;
-import android.util.      FloatMath;
-import java.lang.         Float;
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Paint.Align
+import android.graphics.Rect
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
+import kotlin.math.abs
+import kotlin.math.ceil
 
-public class TextIcon
-{
-  ////////////////////////////////////////////////////////////
-  public static Bitmap getTextIcon(String text, int color, int width, int height)
-  {
-    text=   text.    trim();
-    String  lines[]= text.split("\\s*\n\\s*");
-    int     nLines=  lines.length;
-    Rect    R=       new Rect();
-    Paint   p=       new Paint(Paint.ANTI_ALIAS_FLAG);
-            p.       setShadowLayer(2, 10, 10, 0xFF000000);
-            p.       setColor(color);
-            p.       setSubpixelText(true);
-            p.       setTextSize(256);
-            p.       setTextAlign(Align.CENTER);
-    float   HH[]=    new float[nLines];
-    float   H=       0f;
-    float   W=       0f;
-    for(int i=0; i<nLines; ++i)
-    {
-            p.       getTextBounds(lines[i], 0, lines[i].length(), R);
-      float h=       Float.valueOf(Math.abs(R.top-R.bottom));
-      float w=       Float.valueOf(Math.abs(R.right-R.left));
-      if(nLines>1)   h+=0.1f*h; // Add space between lines.
-      HH[i]=         h;
-      H+=            h;
-      if(w>W)        W=w;
+object TextIcon {
+    @JvmStatic
+    fun getTextIcon(text: String, color: Int, width: Int, height: Int): Bitmap {
+        val trimmedText = text.trim()
+        val lines = trimmedText.split("\\s*\n\\s*".toRegex()).toTypedArray()
+        val nLines = lines.size
+        val rect = Rect()
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.setShadowLayer(2f, 10f, 10f, 0xFF000000.toInt())
+        paint.color = color
+        paint.isSubpixelText = true
+        paint.textSize = 256f
+        paint.textAlign = Align.CENTER
+        val HH = FloatArray(nLines)
+        var H = 0f
+        var W = 0f
+        for (i in 0 until nLines) {
+            paint.getTextBounds(lines[i], 0, lines[i].length, rect)
+            var h = abs(rect.top - rect.bottom).toFloat()
+            var w = abs(rect.right - rect.left).toFloat()
+            if (nLines > 1) h += 0.1f * h // Add space between lines.
+            HH[i] = h
+            H += h
+            if (w > W) W = w
+        }
+        val f = width.toFloat() * H / height.toFloat()
+        var hBitmap = H.toInt()
+        var wBitmap = W.toInt()
+        if (W < f) {
+            wBitmap = ceil(f.toDouble()).toInt()
+            hBitmap = ceil(H.toDouble()).toInt()
+        } else {
+            wBitmap = ceil(W.toDouble()).toInt()
+            hBitmap = (height * wBitmap / width.toFloat()).toInt()
+        }
+        val b = createBitmap(wBitmap, hBitmap)
+        b.density = Bitmap.DENSITY_NONE
+        val c = Canvas(b)
+        val centerW = wBitmap / 2f
+        var top = hBitmap / 2f - H / 2f + HH[0] / 2f
+        for (i in 0 until nLines) {
+            top += HH[i] / 2f
+            c.drawText(lines[i], centerW, top, paint)
+            top += HH[i] / 2f
+        }
+        return b.scale(width, height)
     }
-    float   f=       ((float)width)*H/((float)height);
-    int     hBitmap= (int)H;
-    int     wBitmap= (int)W;
-    if(W<f) {wBitmap=(int)Math.ceil(f); hBitmap=(int)Math.ceil(H);}
-    else    {wBitmap=(int)Math.ceil(W); hBitmap=(int) (double) (height * wBitmap / width);}
-
-    Bitmap  b=       Bitmap.createBitmap(wBitmap, hBitmap, Config.ARGB_8888);
-            b.       setDensity(Bitmap.DENSITY_NONE);
-    Canvas  c=       new Canvas(b);
-
-    W=wBitmap/2f;
-    float top=    hBitmap/2f-H/2f+HH[0]/2f;
-    for(int i=0; i<nLines; ++i)
-    {
-      top+= HH[i]/2f;
-      c.    drawText(lines[i], W, top, p);
-      top+= HH[i]/2f;
-    }
-    return(
-      Bitmap.createScaledBitmap(
-        b
-      , width
-      , height
-      , true
-      )
-    );
-  }
-  ////////////////////////////////////////////////////////////
 }
+

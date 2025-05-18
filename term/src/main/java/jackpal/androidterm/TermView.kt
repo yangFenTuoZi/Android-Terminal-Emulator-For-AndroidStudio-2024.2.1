@@ -14,44 +14,33 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import android.content.Context;
-import android.util.DisplayMetrics;
+import android.annotation.SuppressLint
+import android.content.Context
+import android.util.DisplayMetrics
+import jackpal.androidterm.emulatorview.ColorScheme
+import jackpal.androidterm.emulatorview.EmulatorView
+import jackpal.androidterm.emulatorview.TermSession
+import jackpal.androidterm.util.TermSettings
 
-import jackpal.androidterm.emulatorview.ColorScheme;
-import jackpal.androidterm.emulatorview.EmulatorView;
-import jackpal.androidterm.emulatorview.TermSession;
-
-import jackpal.androidterm.util.TermSettings;
-
-public class TermView extends EmulatorView {
-    public TermView(Context context, TermSession session, DisplayMetrics metrics) {
-        super(context, session, metrics);
+@SuppressLint("ViewConstructor")
+class TermView(context: Context, session: TermSession, metrics: DisplayMetrics) : EmulatorView(context, session, metrics) {
+    fun updatePrefs(settings: TermSettings, scheme: ColorScheme? = null) {
+        val colorScheme = scheme ?: ColorScheme(settings.colorScheme)
+        setTextSize(settings.fontSize)
+        setUseCookedIME(settings.useCookedIME())
+        setColorScheme(colorScheme)
+        setBackKeyCharacter(settings.backKeyCharacter)
+        setAltSendsEsc(settings.altSendsEscFlag)
+        setControlKeyCode(settings.controlKeyCode)
+        setFnKeyCode(settings.fnKeyCode)
+        setTermType(settings.termType)
+        setMouseTracking(settings.mouseTrackingFlag)
     }
 
-    public void updatePrefs(TermSettings settings, ColorScheme scheme) {
-        if (scheme == null) {
-            scheme = new ColorScheme(settings.getColorScheme());
-        }
-
-        setTextSize(settings.getFontSize());
-        setUseCookedIME(settings.useCookedIME());
-        setColorScheme(scheme);
-        setBackKeyCharacter(settings.getBackKeyCharacter());
-        setAltSendsEsc(settings.getAltSendsEscFlag());
-        setControlKeyCode(settings.getControlKeyCode());
-        setFnKeyCode(settings.getFnKeyCode());
-        setTermType(settings.getTermType());
-        setMouseTracking(settings.getMouseTrackingFlag());
-    }
-
-    public void updatePrefs(TermSettings settings) {
-        updatePrefs(settings, null);
-    }
-
-    @Override
-    public String toString() {
-        return getClass().toString() + '(' + getTermSession() + ')';
+    override fun toString(): String {
+        return this::class.toString() + "(" + termSession + ")"
     }
 }
+

@@ -1,12 +1,17 @@
 package jackpal.androidterm;
 
-import android.annotation.TargetApi;
-import android.os.*;
+import android.os.Looper;
+import android.os.ParcelFileDescriptor;
+
 import androidx.annotation.NonNull;
-import java.io.FileDescriptor;
+
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Utility methods for creating and managing a subprocess. This class differs from

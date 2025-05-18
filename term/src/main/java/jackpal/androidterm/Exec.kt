@@ -14,22 +14,23 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import java.io.IOException;
+import java.io.IOException
 
 /**
  * Utility methods for managing a pty file descriptor.
  */
-public class Exec
-{
+object Exec {
     // Warning: bump the library revision, when an incompatible change happens
-    static {
-        System.loadLibrary("term");
+    init {
+        System.loadLibrary("term")
     }
 
-    static native void setPtyWindowSizeInternal(int fd, int row, int col, int xpixel, int ypixel) throws IOException;
+    @Throws(IOException::class)
+    external fun setPtyWindowSizeInternal(fd: Int, row: Int, col: Int, xpixel: Int, ypixel: Int)
 
-    static native void setPtyUTF8ModeInternal(int fd, boolean utf8Mode) throws IOException;
+    @Throws(IOException::class)
+    external fun setPtyUTF8ModeInternal(fd: Int, utf8Mode: Boolean)
 }
 
