@@ -30,10 +30,10 @@
  * limitations under the License.
  */
 
-#ifndef _COMMON_H
-#define _COMMON_H 1
+#ifndef COMMON_H
+#define COMMON_H 1
 
-#include <stddef.h>
+#include <cstddef>
 
 #include "jni.h"
 #include <android/log.h>

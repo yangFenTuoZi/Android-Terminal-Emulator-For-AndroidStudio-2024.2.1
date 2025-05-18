@@ -32,7 +32,6 @@
 
 #include "common.h"
 #include "termExec.h"
-#include "fileCompat.h"
 
 #define LOG_TAG "libjackpal-androidterm"
 
@@ -45,7 +44,7 @@ int registerNativeMethods(JNIEnv* env, const char* className,
     jclass clazz;
 
     clazz = env->FindClass(className);
-    if (clazz == NULL) {
+    if (clazz == nullptr) {
         LOGE("Native registration unable to find class '%s'", className);
         return JNI_FALSE;
     }
@@ -68,11 +67,11 @@ typedef union {
     void* venv;
 } UnionJNIEnvToVoid;
 
-jint JNI_OnLoad(JavaVM* vm, void* reserved) {
+jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     UnionJNIEnvToVoid uenv;
-    uenv.venv = NULL;
+    uenv.venv = nullptr;
     jint result = -1;
-    JNIEnv* env = NULL;
+    JNIEnv* env = nullptr;
 
     LOGI("JNI_OnLoad");
 
@@ -83,11 +82,6 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     env = uenv.env;
 
     if (init_Exec(env) != JNI_TRUE) {
-        LOGE("ERROR: init of Exec failed");
-        goto bail;
-    }
-
-    if (init_FileCompat(env) != JNI_TRUE) {
         LOGE("ERROR: init of Exec failed");
         goto bail;
     }

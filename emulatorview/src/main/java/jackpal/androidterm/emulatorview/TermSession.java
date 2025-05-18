@@ -22,9 +22,9 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 
 import android.os.Handler;
 import android.os.Looper;
@@ -120,12 +120,7 @@ public class TermSession {
             if (msg.what == NEW_INPUT) {
                 readFromProcess();
             } else if (msg.what == EOF) {
-                new Handler(Looper.getMainLooper()).post(new Runnable() {
-                    @Override
-                    public void run() {
-                        onProcessExit();
-                    }
-                });
+                new Handler(Looper.getMainLooper()).post(() -> onProcessExit());
             }
         }
     };
@@ -139,7 +134,7 @@ public class TermSession {
     public TermSession(final boolean exitOnEOF) {
         mWriteCharBuffer = CharBuffer.allocate(2);
         mWriteByteBuffer = ByteBuffer.allocate(4);
-        mUTF8Encoder = Charset.forName("UTF-8").newEncoder();
+        mUTF8Encoder = StandardCharsets.UTF_8.newEncoder();
         mUTF8Encoder.onMalformedInput(CodingErrorAction.REPLACE);
         mUTF8Encoder.onUnmappableCharacter(CodingErrorAction.REPLACE);
 
@@ -167,8 +162,7 @@ public class TermSession {
                                     mMsgHandler.obtainMessage(NEW_INPUT));
                         }
                     }
-                } catch (IOException e) {
-                } catch (InterruptedException e) {
+                } catch (IOException | InterruptedException ignored) {
                 }
 
                 if (exitOnEOF) mMsgHandler.sendMessage(mMsgHandler.obtainMessage(EOF));
@@ -275,7 +269,7 @@ public class TermSession {
                 count -= written;
                 notifyNewOutput();
             }
-        } catch (InterruptedException e) {
+        } catch (InterruptedException ignored) {
         }
     }
 
@@ -294,7 +288,7 @@ public class TermSession {
         try {
             byte[] bytes = data.getBytes("UTF-8");
             write(bytes, 0, bytes.length);
-        } catch (UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException ignored) {
         }
     }
 
@@ -486,7 +480,7 @@ public class TermSession {
     private void readFromProcess() {
         int bytesAvailable = mByteQueue.getBytesAvailable();
         int bytesToRead = Math.min(bytesAvailable, mReceiveBuffer.length);
-        int bytesRead = 0;
+        int bytesRead;
         try {
             bytesRead = mByteQueue.read(mReceiveBuffer, 0, bytesToRead);
         } catch (InterruptedException e) {
@@ -628,7 +622,7 @@ public class TermSession {
             mTermOut.close();
         } catch (IOException e) {
             // We don't care if this fails
-        } catch (NullPointerException e) {
+        } catch (NullPointerException ignored) {
         }
 
         if (mFinishCallback != null) {

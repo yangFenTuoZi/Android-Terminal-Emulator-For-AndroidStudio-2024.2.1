@@ -27,16 +27,11 @@ import jackpal.androidterm.emulatorview.UpdateCallback;
  * An ArrayList of TermSessions which allows users to register callbacks in
  * order to be notified when the list is changed.
  */
-@SuppressWarnings("serial")
 public class SessionList extends ArrayList<TermSession>
 {
-    LinkedList<UpdateCallback> callbacks = new LinkedList<UpdateCallback>();
-    LinkedList<UpdateCallback> titleChangedListeners = new LinkedList<UpdateCallback>();
-    UpdateCallback mTitleChangedListener = new UpdateCallback() {
-        public void onUpdate() {
-            notifyTitleChanged();
-        }
-    };
+    LinkedList<UpdateCallback> callbacks = new LinkedList<>();
+    LinkedList<UpdateCallback> titleChangedListeners = new LinkedList<>();
+    UpdateCallback mTitleChangedListener = this::notifyTitleChanged;
 
     public SessionList() {
         super();

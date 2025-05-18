@@ -18,11 +18,8 @@ package jackpal.androidterm;
 
 import java.io.*;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 
 import android.os.Build;
-import android.os.Handler;
-import android.os.Message;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
@@ -30,7 +27,6 @@ import jackpal.androidterm.emulatorview.ColorScheme;
 import jackpal.androidterm.emulatorview.TermSession;
 import jackpal.androidterm.emulatorview.UpdateCallback;
 
-import jackpal.androidterm.compat.FileCompat;
 import jackpal.androidterm.util.TermSettings;
 
 /**
@@ -221,16 +217,6 @@ class GenericTermSession extends TermSession {
     }
 
     private static int getIntFd(ParcelFileDescriptor parcelFd) throws IOException {
-        if (Build.VERSION.SDK_INT >= 12)
-            return FdHelperHoneycomb.getFd(parcelFd);
-        else {
-            try {
-                cacheDescField();
-
-                return descriptorField.getInt(parcelFd.getFileDescriptor());
-            } catch (Exception e) {
-                throw new IOException("Unable to obtain file descriptor on this OS version: " + e.getMessage());
-            }
-        }
+        return FdHelperHoneycomb.getFd(parcelFd);
     }
 }

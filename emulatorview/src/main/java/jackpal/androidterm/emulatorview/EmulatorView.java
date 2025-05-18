@@ -17,7 +17,6 @@
 package jackpal.androidterm.emulatorview;
 
 import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat;
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompatFactory;
 import jackpal.androidterm.emulatorview.compat.KeycodeConstants;
 import jackpal.androidterm.emulatorview.compat.Patterns;
 
@@ -232,7 +231,7 @@ public class EmulatorView extends View implements GestureDetector.OnGestureListe
      *
      * A hash table of underlying URLs to implement clickable links.
      */
-    private Hashtable<Integer,URLSpan[]> mLinkLayer = new Hashtable<Integer,URLSpan[]>();
+    private Hashtable<Integer,URLSpan[]> mLinkLayer = new Hashtable<>();
 
     /**
      * Accept links that start with http[s]:
@@ -346,9 +345,7 @@ public class EmulatorView extends View implements GestureDetector.OnGestureListe
             }
 
             //For each URL:
-            for(int urlNum=0; urlNum<urls.length; ++urlNum)
-            {
-                URLSpan url = urls[urlNum];
+            for (URLSpan url : urls) {
                 int spanStart = textToLinkify.getSpanStart(url);
                 int spanEnd = textToLinkify.getSpanEnd(url);
 
@@ -364,8 +361,8 @@ public class EmulatorView extends View implements GestureDetector.OnGestureListe
                     // Basic line -- can assume one char per column
                     startRow = spanStart / mColumns;
                     startCol = spanStart % mColumns;
-                    endRow   = spanLastPos / mColumns;
-                    endCol   = spanLastPos % mColumns;
+                    endRow = spanLastPos / mColumns;
+                    endCol = spanLastPos % mColumns;
                 } else {
                     /* Iterate over the line to get starting and ending columns
                      * for this span */
@@ -403,9 +400,8 @@ public class EmulatorView extends View implements GestureDetector.OnGestureListe
                 }
 
                 //Fill linkRows with the URL where appropriate
-                for(int i=startRow; i <= endRow; ++i)
-                {
-                    int runStart = (i == startRow) ? startCol: 0;
+                for (int i = startRow; i <= endRow; ++i) {
+                    int runStart = (i == startRow) ? startCol : 0;
                     int runEnd = (i == endRow) ? endCol : mColumns - 1;
 
                     Arrays.fill(linkRows[i], runStart, runEnd + 1, url);
@@ -459,7 +455,8 @@ public class EmulatorView extends View implements GestureDetector.OnGestureListe
                 post(this);
             }
         }
-    };
+    }
+
     private MouseTrackingFlingRunner mMouseTrackingFlingRunner = new MouseTrackingFlingRunner();
 
     private float mScrollRemainder;
@@ -1253,8 +1250,7 @@ public class EmulatorView extends View implements GestureDetector.OnGestureListe
             mSelX2 = maxx;
             mSelY2 = maxy;
             if (action == MotionEvent.ACTION_UP) {
-                ClipboardManagerCompat clip = ClipboardManagerCompatFactory
-                        .getManager(getContext().getApplicationContext());
+                ClipboardManagerCompat clip = new ClipboardManagerCompat(getContext().getApplicationContext());
                 clip.setText(getSelectedText().trim());
                 toggleSelectingText();
             }
@@ -1372,7 +1368,7 @@ public class EmulatorView extends View implements GestureDetector.OnGestureListe
         }
 
         return super.onKeyPreIme(keyCode, event);
-    };
+    }
 
     private boolean handleControlKey(int keyCode, boolean down) {
         if (keyCode == mControlKeyCode) {

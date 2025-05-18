@@ -16,10 +16,12 @@
 
 package jackpal.androidterm.emulatorview;
 
+import android.icu.lang.UCharacter;
+import android.icu.lang.UProperty;
+import android.text.AndroidCharacter;
 import android.util.Log;
 
-import jackpal.androidterm.emulatorview.compat.AndroidCharacterCompat;
-import jackpal.androidterm.emulatorview.compat.AndroidCompat;
+import java.util.Arrays;
 
 /**
  * A backing store for a TranscriptScreen.
@@ -52,7 +54,7 @@ class UnicodeTranscript {
     private int mScreenRows;
     private int mColumns;
     private int mActiveTranscriptRows = 0;
-    private int mDefaultStyle = 0;
+    private int mDefaultStyle;
 
     private int mScreenFirstRow = 0;
 
@@ -206,8 +208,6 @@ class UnicodeTranscript {
                     --shift;
                     if (shift == 0) {
                         break;
-                    } else {
-                        continue;
                     }
                 } else {
                     // Line not blank -- we keep it and everything above
@@ -353,7 +353,6 @@ class UnicodeTranscript {
         color[blankRow] = new StyleRow(style, mColumns);
         lineWrap[blankRow] = false;
 
-        return;
     }
 
     /**
@@ -396,20 +395,19 @@ class UnicodeTranscript {
                     char cHigh = 0;
                     int x = 0;
                     int columns = mColumns;
-                    for (int i = 0; i < tmp.length; ++i) {
-                        if (tmp[i] == 0 || dx + x >= columns) {
+                    for (char c : tmp) {
+                        if (c == 0 || dx + x >= columns) {
                             break;
                         }
-                        if (Character.isHighSurrogate(tmp[i])) {
-                            cHigh = tmp[i];
-                            continue;
-                        } else if (Character.isLowSurrogate(tmp[i])) {
-                            int codePoint = Character.toCodePoint(cHigh, tmp[i]);
+                        if (Character.isHighSurrogate(c)) {
+                            cHigh = c;
+                        } else if (Character.isLowSurrogate(c)) {
+                            int codePoint = Character.toCodePoint(cHigh, c);
                             setChar(dx + x, extDstRow, codePoint);
                             x += charWidth(codePoint);
                         } else {
-                            setChar(dx + x, extDstRow, tmp[i]);
-                            x += charWidth(tmp[i]);
+                            setChar(dx + x, extDstRow, c);
+                            x += charWidth(c);
                         }
                     }
                 }
@@ -434,20 +432,19 @@ class UnicodeTranscript {
                     char cHigh = 0;
                     int x = 0;
                     int columns = mColumns;
-                    for (int i = 0; i < tmp.length; ++i) {
-                        if (tmp[i] == 0 || dx + x >= columns) {
+                    for (char c : tmp) {
+                        if (c == 0 || dx + x >= columns) {
                             break;
                         }
-                        if (Character.isHighSurrogate(tmp[i])) {
-                            cHigh = tmp[i];
-                            continue;
-                        } else if (Character.isLowSurrogate(tmp[i])) {
-                            int codePoint = Character.toCodePoint(cHigh, tmp[i]);
+                        if (Character.isHighSurrogate(c)) {
+                            cHigh = c;
+                        } else if (Character.isLowSurrogate(c)) {
+                            int codePoint = Character.toCodePoint(cHigh, c);
                             setChar(dx + x, extDstRow, codePoint);
                             x += charWidth(codePoint);
                         } else {
-                            setChar(dx + x, extDstRow, tmp[i]);
-                            x += charWidth(tmp[i]);
+                            setChar(dx + x, extDstRow, c);
+                            x += charWidth(c);
                         }
                     }
                 }
@@ -480,16 +477,6 @@ class UnicodeTranscript {
             }
         }
     }
-
-    /**
-     * Minimum API version for which we're willing to let Android try
-     * rendering conjoining Hangul jamo as composed syllable blocks.
-     *
-     * This appears to work on Android 4.1.2, 4.3, and 4.4 (real devices only;
-     * the emulator's broken for some reason), but not on 4.0.4 -- hence the
-     * choice of API 16 as the minimum.
-     */
-    static final int HANGUL_CONJOINING_MIN_SDK = 16;
 
     /**
      * Gives the display width of the code point in a monospace font.
@@ -532,30 +519,21 @@ class UnicodeTranscript {
 
         if ((codePoint >= 0x1160 && codePoint <= 0x11FF) ||
             (codePoint >= 0xD7B0 && codePoint <= 0xD7FF)) {
-            if (AndroidCompat.SDK >= HANGUL_CONJOINING_MIN_SDK) {
-                /* Treat Hangul jamo medial vowels and final consonants as
-                 * combining characters with width 0 to make jamo composition
-                 * work correctly.
-                 *
-                 * XXX: This is wrong for medials/finals outside a Korean
-                 * syllable block, but there's no easy solution to that
-                 * problem, and we may as well at least get the common case
-                 * right. */
-                return 0;
-            } else {
-                /* Older versions of Android didn't compose Hangul jamo, but
-                 * instead rendered them as individual East Asian wide
-                 * characters (despite Unicode defining medial vowels and final
-                 * consonants as East Asian neutral/narrow).  Treat them as
-                 * width 2 characters to match the rendering. */
-                return 2;
-            }
+            /* Treat Hangul jamo medial vowels and final consonants as
+             * combining characters with width 0 to make jamo composition
+             * work correctly.
+             *
+             * XXX: This is wrong for medials/finals outside a Korean
+             * syllable block, but there's no easy solution to that
+             * problem, and we may as well at least get the common case
+             * right. */
+            return 0;
         }
         if (Character.charCount(codePoint) == 1) {
             // Android's getEastAsianWidth() only works for BMP characters
-            switch (AndroidCharacterCompat.getEastAsianWidth((char) codePoint)) {
-            case AndroidCharacterCompat.EAST_ASIAN_WIDTH_FULL_WIDTH:
-            case AndroidCharacterCompat.EAST_ASIAN_WIDTH_WIDE:
+            switch (UCharacter.getIntPropertyValue((char) codePoint, UProperty.EAST_ASIAN_WIDTH)) {
+                case AndroidCharacter.EAST_ASIAN_WIDTH_FULL_WIDTH:
+                case AndroidCharacter.EAST_ASIAN_WIDTH_WIDE:
                 return 2;
             }
         } else {
@@ -779,9 +757,7 @@ class UnicodeTranscript {
         char[] line = new char[columns];
 
         // Fill the line with blanks
-        for (int i = 0; i < columns; ++i) {
-            line[i] = ' ';
-        }
+        Arrays.fill(line, ' ');
 
         mLines[row] = line;
         if (mColor[row] == null) {
@@ -835,8 +811,7 @@ class UnicodeTranscript {
             }
         }
 
-        if (mLines[row] instanceof char[]) {
-            char[] line = (char[]) mLines[row];
+        if (mLines[row] instanceof char[] line) {
 
             if (basicMode == -1) {
                 if (isBasicChar(codePoint)) {
@@ -1109,7 +1084,7 @@ class FullUnicodeLine {
                     if (nextLen > 1) {
                         System.arraycopy(text, nextPos + nextLen, text, nextPos + 1, spaceUsed - nextPos - nextLen);
                         shift -= nextLen - 1;
-                        offset[0] -= nextLen - 1;
+                        offset[0] -= (short) (nextLen - 1);
                     }
                 } else {
                     // Shift the array leftwards
@@ -1117,7 +1092,7 @@ class FullUnicodeLine {
                     shift -= nextLen;
 
                     // Truncate the line
-                    offset[0] -= nextLen;
+                    offset[0] -= (short) nextLen;
                 }
 
                 // Correct the offset for the next column to reflect width change
@@ -1133,7 +1108,7 @@ class FullUnicodeLine {
         // Update offset table
         if (shift != 0) {
             for (int i = column + 1; i < columns; ++i) {
-                offset[i] += shift;
+                offset[i] += (short) shift;
             }
         }
     }

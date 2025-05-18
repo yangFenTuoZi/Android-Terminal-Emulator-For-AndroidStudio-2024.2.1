@@ -1,8 +1,5 @@
 package jackpal.androidterm.emulatorview;
 
-import jackpal.androidterm.emulatorview.compat.AndroidCompat;
-import jackpal.androidterm.emulatorview.compat.KeyCharacterMapCompat;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.HashMap;
@@ -38,7 +35,7 @@ class TermKeyListener {
     private String[] mAppKeyCodes = new String[256];
 
     private void initKeyCodes() {
-        mKeyMap = new HashMap<Integer, String>();
+        mKeyMap = new HashMap<>();
         mKeyMap.put(KEYMOD_SHIFT | KEYCODE_DPAD_LEFT, "\033[1;2D");
         mKeyMap.put(KEYMOD_ALT | KEYCODE_DPAD_LEFT, "\033[1;3D");
         mKeyMap.put(KEYMOD_ALT | KEYMOD_SHIFT | KEYCODE_DPAD_LEFT, "\033[1;4D");
@@ -276,17 +273,11 @@ class TermKeyListener {
         }
 
         public int getUIMode() {
-            switch (mState) {
-            default:
-            case UNPRESSED:
-                return TextRenderer.MODE_OFF;
-            case PRESSED:
-            case RELEASED:
-            case USED:
-                return TextRenderer.MODE_ON;
-            case LOCKED:
-                return TextRenderer.MODE_LOCKED;
-            }
+            return switch (mState) {
+                case PRESSED, RELEASED, USED -> TextRenderer.MODE_ON;
+                case LOCKED -> TextRenderer.MODE_LOCKED;
+                default -> TextRenderer.MODE_OFF;
+            };
         }
     }
 
@@ -650,16 +641,11 @@ class TermKeyListener {
     }
 
     static boolean isEventFromToggleDevice(KeyEvent event) {
-        if (AndroidCompat.SDK < 11) {
-            return true;
-        }
-        KeyCharacterMapCompat kcm = KeyCharacterMapCompat.wrap(
-                KeyCharacterMap.load(event.getDeviceId()));
-        return kcm.getModifierBehaviour() ==
-                KeyCharacterMapCompat.MODIFIER_BEHAVIOR_CHORDED_OR_TOGGLED;
+        return KeyCharacterMap.load(event.getDeviceId()).getModifierBehavior() ==
+                KeyCharacterMap.MODIFIER_BEHAVIOR_CHORDED_OR_TOGGLED;
     }
 
-    public boolean handleKeyCode(int keyCode, KeyEvent event, boolean appMode) throws IOException {
+    public boolean handleKeyCode(int keyCode, KeyEvent event, boolean appMode) {
         String code = null;
         if (event != null) {
             int keyMod = 0;

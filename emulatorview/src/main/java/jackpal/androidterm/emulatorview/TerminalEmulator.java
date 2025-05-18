@@ -16,12 +16,12 @@
 
 package jackpal.androidterm.emulatorview;
 
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Locale;
 
 import android.util.Log;
@@ -422,7 +422,7 @@ class TerminalEmulator {
 
         mUTF8ByteBuffer = ByteBuffer.allocate(4);
         mInputCharBuffer = CharBuffer.allocate(2);
-        mUTF8Decoder = Charset.forName("UTF-8").newDecoder();
+        mUTF8Decoder = StandardCharsets.UTF_8.newDecoder();
         mUTF8Decoder.onMalformedInput(CodingErrorAction.REPLACE);
         mUTF8Decoder.onUnmappableCharacter(CodingErrorAction.REPLACE);
 
@@ -580,7 +580,7 @@ class TerminalEmulator {
                 newCursorRow = mCursorRow;
                 newCursorCol = mCursorCol;
                 newCursorTranscriptPos = screen.getActiveRows();
-                if (charAtCursor != null && charAtCursor.length() > 0) {
+                if (charAtCursor != null && !charAtCursor.isEmpty()) {
                     // Emit the real character that was in this spot
                     int encodedCursorColor = cursorColor.at(0);
                     emit(charAtCursor.toCharArray(), 0, charAtCursor.length(), encodedCursorColor);
@@ -671,7 +671,7 @@ class TerminalEmulator {
                 mProcessedCharCount++;
             } catch (Exception e) {
                 Log.e(EmulatorDebug.LOG_TAG, "Exception while processing character "
-                        + Integer.toString(mProcessedCharCount) + " code "
+                        + mProcessedCharCount + " code "
                         + Integer.toString(b), e);
             }
         }
@@ -999,9 +999,7 @@ class TerminalEmulator {
     private void startEscapeSequence(int escapeState) {
         mEscapeState = escapeState;
         mArgIndex = 0;
-        for (int j = 0; j < MAX_ESCAPE_PARAMETERS; j++) {
-            mArgs[j] = -1;
-        }
+        Arrays.fill(mArgs, -1);
     }
 
     private void doLinefeed() {
@@ -1057,15 +1055,11 @@ class TerminalEmulator {
     }
 
     private void doEscPound(byte b) {
-        switch (b) {
-        case '8': // Esc # 8 - DECALN alignment test
+        if (b == '8') { // Esc # 8 - DECALN alignment test
             mScreen.blockSet(0, 0, mColumns, mRows, 'E',
                     getStyle());
-            break;
-
-        default:
+        } else {
             unknownSequence(b);
-            break;
         }
     }
 
@@ -1502,18 +1496,13 @@ class TerminalEmulator {
     }
 
     private void doEscRightSquareBracketEsc(byte b) {
-        switch (b) {
-        case '\\':
+        if (b == '\\') {
             doOSC();
-            break;
-
-        default:
-            // The ESC character was not followed by a \, so insert the ESC and
+        } else {// The ESC character was not followed by a \, so insert the ESC and
             // the current character in arg buffer.
             collectOSCArgs((byte) 0x1b);
             collectOSCArgs(b);
             continueSequence(ESC_RIGHT_SQUARE_BRACKET);
-            break;
         }
     }
 
@@ -1565,14 +1554,10 @@ class TerminalEmulator {
 
     private void doSetMode(boolean newValue) {
         int modeBit = getArg0(0);
-        switch (modeBit) {
-        case 4:
+        if (modeBit == 4) {
             mInsertMode = newValue;
-            break;
-
-        default:
+        } else {
             unknownParameter(modeBit);
-            break;
         }
     }
 
@@ -1705,11 +1690,7 @@ class TerminalEmulator {
         if (start == end) {
             return "";
         }
-        try {
-            return new String(mOSCArg, start, end-start, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            return new String(mOSCArg, start, end-start);
-        }
+        return new String(mOSCArg, start, end-start, StandardCharsets.UTF_8);
     }
 
     private int nextOSCInt(int delimiter) {
@@ -1859,7 +1840,7 @@ class TerminalEmulator {
 
     private void emit(byte b) {
         if (mUseAlternateCharSet && b < 128) {
-            emit((int) mSpecialGraphicsCharMap[b]);
+            emit(mSpecialGraphicsCharMap[b]);
         } else {
             emit((int) b);
         }
@@ -1874,7 +1855,7 @@ class TerminalEmulator {
         if (Character.isHighSurrogate(c[0])) {
             emit(Character.toCodePoint(c[0], c[1]));
         } else {
-            emit((int) c[0]);
+            emit(c[0]);
         }
     }
 
@@ -1892,7 +1873,7 @@ class TerminalEmulator {
                 emit(Character.toCodePoint(c[i], c[i+1]), style);
                 ++i;
             } else {
-                emit((int) c[i], style);
+                emit(c[i], style);
             }
         }
     }

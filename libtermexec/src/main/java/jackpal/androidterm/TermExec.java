@@ -2,7 +2,7 @@ package jackpal.androidterm;
 
 import android.annotation.TargetApi;
 import android.os.*;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -70,11 +70,11 @@ public class TermExec {
         if (Looper.getMainLooper() == Looper.myLooper())
             throw new IllegalStateException("This method must not be called from the main thread!");
 
-        if (command.size() == 0)
+        if (command.isEmpty())
             throw new IllegalStateException("Empty command!");
 
         final String cmd = command.remove(0);
-        final String[] cmdArray = command.toArray(new String[command.size()]);
+        final String[] cmdArray = command.toArray(new String[0]);
         final String[] envArray = new String[environment.size()];
         int i = 0;
         for (Map.Entry<String, String> entry : environment.entrySet()) {
@@ -102,20 +102,7 @@ public class TermExec {
     {
         final int integerFd;
 
-        if (Build.VERSION.SDK_INT >= 12)
-            integerFd = FdHelperHoneycomb.getFd(masterFd);
-        else {
-            try {
-                if (descriptorField == null) {
-                    descriptorField = FileDescriptor.class.getDeclaredField("descriptor");
-                    descriptorField.setAccessible(true);
-                }
-
-                integerFd = descriptorField.getInt(masterFd.getFileDescriptor());
-            } catch (Exception e) {
-                throw new IOException("Unable to obtain file descriptor on this OS version: " + e.getMessage());
-            }
-        }
+        integerFd = FdHelperHoneycomb.getFd(masterFd);
 
         return createSubprocessInternal(cmd, args, envVars, integerFd);
     }
@@ -124,7 +111,6 @@ public class TermExec {
 }
 
 // prevents runtime errors on old API versions with ruthless verifier
-@TargetApi(Build.VERSION_CODES.HONEYCOMB_MR1)
 class FdHelperHoneycomb {
     static int getFd(ParcelFileDescriptor descriptor) {
         return descriptor.getFd();

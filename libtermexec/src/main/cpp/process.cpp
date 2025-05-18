@@ -20,19 +20,18 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <dirent.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <termios.h>
-#include <signal.h>
-#include <string.h>
-
+#include <cerrno>
+#include <cstdlib>
+#include <csignal>
+#include <cstring>
 
 class String8 {
 public:
     String8() {
-        mString = 0;
+        mString = nullptr;
     }
 
     ~String8() {
@@ -44,6 +43,12 @@ public:
     void set(const char16_t* o, size_t numChars) {
         if (mString) {
             free(mString);
+            mString = nullptr;
+        }
+        if (numChars == 0) {
+            mString = (char*)malloc(1);
+            if (mString) mString[0] = '\0';
+            return;
         }
         mString = (char*) malloc(numChars + 1);
         if (!mString) {
@@ -95,20 +100,20 @@ static void closeNonstandardFileDescriptors() {
     // the form "properties_fd,sizeOfSharedMemory"
     int properties_fd = -1;
     char* properties_fd_string = getenv("ANDROID_PROPERTY_WORKSPACE");
-    if (properties_fd_string != NULL) {
-        properties_fd = atoi(properties_fd_string);
+    if (properties_fd_string != nullptr) {
+        properties_fd = strtol(properties_fd_string, nullptr, 10);
     }
     DIR *dir = opendir("/proc/self/fd");
-    if(dir != NULL) {
+    if(dir != nullptr) {
         int dir_fd = dirfd(dir);
 
         while(true) {
             struct dirent *entry = readdir(dir);
-            if(entry == NULL) {
+            if(entry == nullptr) {
                 break;
             }
 
-            int fd = atoi(entry->d_name);
+            int fd = strtol(entry->d_name, nullptr, 10);
             if(fd > STDERR_FILENO && fd != dir_fd && fd != properties_fd) {
                 close(fd);
             }
@@ -195,10 +200,10 @@ JNIEXPORT jint JNICALL Java_jackpal_androidterm_TermExec_waitFor(JNIEnv *env, jc
     return result;
 }
 
-JNIEXPORT jint JNICALL Java_jackpal_androidterm_TermExec_createSubprocessInternal(JNIEnv *env, jclass clazz,
+JNIEXPORT jint JNICALL Java_jackpal_androidterm_TermExec_createSubprocessInternal(JNIEnv *env, jclass /*clazz*/,
     jstring cmd, jobjectArray args, jobjectArray envVars, jint masterFd)
 {
-    const jchar* str = cmd ? env->GetStringCritical(cmd, 0) : 0;
+    const jchar* str = cmd ? env->GetStringCritical(cmd, nullptr) : nullptr;
     String8 cmd_8;
     if (str) {
         cmd_8.set(reinterpret_cast<const char16_t *>(str), env->GetStringLength(cmd));
@@ -206,8 +211,7 @@ JNIEXPORT jint JNICALL Java_jackpal_androidterm_TermExec_createSubprocessInterna
     }
 
     jsize size = args ? env->GetArrayLength(args) : 0;
-    char **argv = NULL;
-    String8 tmp_8;
+    char **argv = nullptr;
     if (size > 0) {
         argv = (char **)malloc((size+1)*sizeof(char *));
         if (!argv) {
@@ -215,39 +219,53 @@ JNIEXPORT jint JNICALL Java_jackpal_androidterm_TermExec_createSubprocessInterna
             return 0;
         }
         for (int i = 0; i < size; ++i) {
-            jstring arg = reinterpret_cast<jstring>(env->GetObjectArrayElement(args, i));
-            str = env->GetStringCritical(arg, 0);
+            auto arg = reinterpret_cast<jstring>(env->GetObjectArrayElement(args, i));
+            str = env->GetStringCritical(arg, nullptr);
             if (!str) {
                 throwOutOfMemoryError(env, "Couldn't get argument from array");
+                for (int j = 0; j < i; ++j) free(argv[j]);
+                free(argv);
                 return 0;
             }
+            String8 tmp_8;
             tmp_8.set(reinterpret_cast<const char16_t *>(str), env->GetStringLength(arg));
             env->ReleaseStringCritical(arg, str);
             argv[i] = strdup(tmp_8.string());
         }
-        argv[size] = NULL;
+        argv[size] = nullptr;
     }
 
     size = envVars ? env->GetArrayLength(envVars) : 0;
-    char **envp = NULL;
+    char **envp = nullptr;
     if (size > 0) {
         envp = (char **)malloc((size+1)*sizeof(char *));
         if (!envp) {
             throwOutOfMemoryError(env, "Couldn't allocate envp array");
+            if (argv) {
+                for (char **tmp = argv; *tmp; ++tmp) free(*tmp);
+                free(argv);
+            }
             return 0;
         }
         for (int i = 0; i < size; ++i) {
-            jstring var = reinterpret_cast<jstring>(env->GetObjectArrayElement(envVars, i));
-            str = env->GetStringCritical(var, 0);
+            auto var = reinterpret_cast<jstring>(env->GetObjectArrayElement(envVars, i));
+            str = env->GetStringCritical(var, nullptr);
             if (!str) {
                 throwOutOfMemoryError(env, "Couldn't get env var from array");
+                for (int j = 0; j < i; ++j) free(envp[j]);
+                free(envp);
+                if (argv) {
+                    for (char **tmp = argv; *tmp; ++tmp) free(*tmp);
+                    free(argv);
+                }
                 return 0;
             }
+            String8 tmp_8;
             tmp_8.set(reinterpret_cast<const char16_t *>(str), env->GetStringLength(var));
             env->ReleaseStringCritical(var, str);
             envp[i] = strdup(tmp_8.string());
         }
-        envp[size] = NULL;
+        envp[size] = nullptr;
     }
 
     int ptm = create_subprocess(env, cmd_8.string(), argv, envp, masterFd);

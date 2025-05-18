@@ -10,6 +10,7 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -18,6 +19,8 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.ACCESS_SUPERUSER" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:extractNativeLibs="true"
@@ -100,7 +103,8 @@
 
         <service
             android:name="TermService"
-            android:exported="true">
+            android:exported="false"
+            android:foregroundServiceType="dataSync">
             <intent-filter>
                 <action android:name="jackpal.androidterm.action.START_TERM.v1" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -147,6 +151,6 @@
 
         <meta-data
             android:name="com.sec.android.support.multiwindow"
-            android:value="true"></meta-data>
+            android:value="true" />
     </application>
 </manifest>

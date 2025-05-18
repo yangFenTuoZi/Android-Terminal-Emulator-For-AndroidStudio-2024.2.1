@@ -9,8 +9,6 @@ android {
     defaultConfig {
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
     }
 
     compileOptions {
@@ -36,18 +34,6 @@ android {
     }
 }
 
-// by default recent plugin version does not copy any AIDL files "to avoid publishing too much"
-android.libraryVariants.all { variant ->
-    Sync packageAidl = project.tasks.create("addPublic${variant.name.capitalize()}Aidl", Sync) { sync ->
-        from "$project.projectDir/src/main/aidl/"
-        into "$buildDir/intermediates/bundles/${variant.dirName}/aidl/"
-    }
-
-    variant.javaCompile.dependsOn packageAidl
-}
-
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
-
-    implementation 'com.android.support:support-annotations:28.0.0'
+    implementation 'androidx.annotation:annotation:1.9.1'
 }

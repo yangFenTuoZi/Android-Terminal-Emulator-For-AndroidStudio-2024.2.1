@@ -16,13 +16,8 @@
 
 package jackpal.androidterm;
 
-import jackpal.androidterm.compat.ActionBarCompat;
-import jackpal.androidterm.compat.ActivityCompat;
-import jackpal.androidterm.compat.AndroidCompat;
 import android.os.Bundle;
-import android.preference.Preference;
 import android.preference.PreferenceActivity;
-import android.preference.PreferenceCategory;
 import android.view.MenuItem;
 
 public class TermPreferences extends PreferenceActivity {
@@ -33,37 +28,15 @@ public class TermPreferences extends PreferenceActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Load the preferences from an XML resource
         addPreferencesFromResource(R.xml.preferences);
-
-        // Remove the action bar pref on older platforms without an action bar
-        if (AndroidCompat.SDK < 11) {
-            Preference actionBarPref = findPreference(ACTIONBAR_KEY);
-             PreferenceCategory screenCategory =
-                    (PreferenceCategory) findPreference(CATEGORY_SCREEN_KEY);
-             if ((actionBarPref != null) && (screenCategory != null)) {
-                 screenCategory.removePreference(actionBarPref);
-             }
-        }
-
-        // Display up indicator on action bar home button
-        if (AndroidCompat.V11ToV20) {
-            ActionBarCompat bar = ActivityCompat.getActionBar(this);
-            if (bar != null) {
-                bar.setDisplayOptions(ActionBarCompat.DISPLAY_HOME_AS_UP, ActionBarCompat.DISPLAY_HOME_AS_UP);
-            }
-        }
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-        case ActionBarCompat.ID_HOME:
-            // Action bar home button selected
+        if (item.getItemId() == android.R.id.home) {// Action bar home button selected
             finish();
             return true;
-        default:
-            return super.onOptionsItemSelected(item);
         }
+        return super.onOptionsItemSelected(item);
     }
 }

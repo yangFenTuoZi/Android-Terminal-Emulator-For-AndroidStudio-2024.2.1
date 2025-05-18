@@ -1,8 +1,8 @@
 //From the desk of Frank P. Westlake; public domain.
 package jackpal.androidterm.shortcuts;
 
+import android.app.AlertDialog;
 import android.content.    Context;
-import android.content.    DialogInterface;
 import android.content.    Intent;
 import android.content.    SharedPreferences;
 import android.graphics.   Typeface;
@@ -13,7 +13,6 @@ import android.preference. PreferenceManager;
 import android.util.       Log;
 import android.view.       Gravity;
 import android.view.       View;
-import android.view.       View.OnFocusChangeListener;
 import android.widget.     Button;
 import android.widget.     ImageView;
 import android.widget.     LinearLayout;
@@ -24,8 +23,6 @@ import jackpal.androidterm.R;
 import jackpal.androidterm.RemoteInterface;
 import jackpal.androidterm.RunShortcut;
 import jackpal.androidterm.TermDebug;
-import jackpal.androidterm.compat.AlertDialogCompat;
-import jackpal.androidterm.compat.PRNGFixes;
 import jackpal.androidterm.util.ShortcutEncryption;
 
 import java.io.            File;
@@ -41,10 +38,10 @@ public class      AddShortcut
   private final int                    PATH=                        ix++
   ,                                    ARGS=                        ix++
   ,                                    NAME=                        ix++;
-  private final EditText               et[]=                        new EditText[5];
+  private final EditText[]             et=                          new EditText[5];
   private       String                 path;
   private       String                 name="";
-  private       String                 iconText[]=                  {"", null};
+  private       String[]               iconText=                    {"", null};
 
   //////////////////////////////////////////////////////////////////////
   protected void onCreate(Bundle savedInstanceState)
@@ -59,60 +56,52 @@ public class      AddShortcut
   void makeShortcut()
   {
     if(path==null) path="";
-    final AlertDialogCompat.Builder alert =
-        AlertDialogCompat.newInstanceBuilder(context, AlertDialogCompat.THEME_HOLO_DARK);
+    final AlertDialog.Builder alert =
+            new AlertDialog.Builder(context);
     LinearLayout   lv=new LinearLayout(context);
                    lv.setOrientation(LinearLayout.VERTICAL);
     for(int i=0, n=et.length; i<n; i++) {et[i]=new EditText(context); et[i].setSingleLine(true);}
-    if(!path.equals("")) et[0].setText(path);
+    if(!path.isEmpty()) et[0].setText(path);
     et[PATH].setHint(getString(R.string.addshortcut_command_hint));//"command");
     et[NAME].setText(name);
     et[ARGS].setHint(getString(R.string.addshortcut_example_hint));//"--example=\"a\"");
     et[ARGS].setOnFocusChangeListener(
-      new OnFocusChangeListener()
-      {
-        public void onFocusChange(View view, boolean focus)
-        {
-          if(!focus)
-          {
-            String s;
-            if(
-              et[NAME].getText().toString().equals("")
-            && !(s=et[ARGS].getText().toString()).equals("")
-            )
-              et[NAME].setText(s.split("\\s")[0]);
-          }
-        }
-      }
+            (view, focus) -> {
+              if(!focus)
+              {
+                String s;
+                if(
+                        et[NAME].getText().toString().isEmpty()
+                && !(s = et[ARGS].getText().toString()).isEmpty()
+                )
+                  et[NAME].setText(s.split("\\s")[0]);
+              }
+            }
     );
 
     Button  btn_path=new Button(context);
             btn_path.setText(getString(R.string.addshortcut_button_find_command));//"Find command");
             btn_path.setOnClickListener(
-              new View.OnClickListener()
-              {
-                public void onClick(View p1)
-                {
-                  String lastPath=SP.getString("lastPath", null);
-                  File get= (lastPath==null)
-                            ?Environment.getExternalStorageDirectory()
-                            :new File(lastPath).getParentFile();
-                    Intent pickerIntent=new Intent();
-                    if(SP.getBoolean("useInternalScriptFinder", false))
-                    {
-                      pickerIntent.setClass(getApplicationContext(), jackpal.androidterm.shortcuts.FSNavigator.class)
-                      .setData(Uri.fromFile(get))
-                      .putExtra("title", getString(R.string.addshortcut_navigator_title));//"SELECT SHORTCUT TARGET")
+                    p1 -> {
+                      String lastPath=SP.getString("lastPath", null);
+                      File get= (lastPath==null)
+                                ?Environment.getExternalStorageDirectory()
+                                :new File(lastPath).getParentFile();
+                        Intent pickerIntent=new Intent();
+                        if(SP.getBoolean("useInternalScriptFinder", false))
+                        {
+                          pickerIntent.setClass(getApplicationContext(), FSNavigator.class)
+                          .setData(Uri.fromFile(get))
+                          .putExtra("title", getString(R.string.addshortcut_navigator_title));//"SELECT SHORTCUT TARGET")
+                        }
+                        else
+                        {
+                          pickerIntent
+                          .putExtra("CONTENT_TYPE", "*/*")
+                          .setAction(Intent.ACTION_PICK);
+                        }
+                        startActivityForResult(pickerIntent, OP_MAKE_SHORTCUT);
                     }
-                    else
-                    {
-                      pickerIntent
-                      .putExtra("CONTENT_TYPE", "*/*")
-                      .setAction(Intent.ACTION_PICK);
-                    }
-                    startActivityForResult(pickerIntent, OP_MAKE_SHORTCUT);
-                }
-              }
             );
     lv.addView(
       layoutTextViewH(
@@ -135,13 +124,7 @@ public class      AddShortcut
     final Button    btn_color=new Button(context);
                     btn_color.setText(getString(R.string.addshortcut_button_text_icon));//"Text icon");
                     btn_color.setOnClickListener(
-                      new View.OnClickListener()
-                      {
-                        public void onClick(View p1)
-                        {
-                          new ColorValue(context, img, iconText);
-                        }
-                      }
+                            p1 -> new ColorValue(context, img, iconText)
                     );
     lv.addView(
       layoutTextViewH(
@@ -159,29 +142,17 @@ public class      AddShortcut
     alert.setTitle(getString(R.string.addshortcut_title));//"Term Shortcut");
     alert.setPositiveButton(
       android.R.string.yes
-    , new DialogInterface.OnClickListener()
-      {
-        public void onClick(DialogInterface dialog, int which)
-        {
-          buildShortcut(
-            path
-          , et[ARGS].getText().toString()
-          , et[NAME].getText().toString()
-          , iconText[1]
-          , (Integer)img.getTag()
-          );
-        }
-      }
+    , (dialog, which) -> buildShortcut(
+      path
+    , et[ARGS].getText().toString()
+    , et[NAME].getText().toString()
+    , iconText[1]
+    , (Integer)img.getTag()
+    )
     );
     alert.setNegativeButton(
       android.R.string.cancel
-    , new DialogInterface.OnClickListener()
-      {
-        public void onClick(DialogInterface dialog, int which)
-        {
-          finish();
-        }
-      }
+    , (dialog, which) -> finish()
     );
     alert.show();
   }
@@ -223,8 +194,6 @@ public class      AddShortcut
     , int    shortcutColor
     )
     {
-      // Apply workarounds for SecureRandom bugs in Android < 4.4
-      PRNGFixes.apply();
       ShortcutEncryption.Keys keys=ShortcutEncryption.getKeys(context);
       if(keys==null)
       {
@@ -234,23 +203,23 @@ public class      AddShortcut
         }
         catch (GeneralSecurityException e)
         {
-          Log.e(TermDebug.LOG_TAG, "Generating shortcut encryption keys failed: " + e.toString());
+          Log.e(TermDebug.LOG_TAG, "Generating shortcut encryption keys failed: " + e);
           throw new RuntimeException(e);
         }
         ShortcutEncryption.saveKeys(context, keys);
       }
       StringBuilder cmd=new StringBuilder();
-      if(path!=null      && !path.equals(""))      cmd.append(RemoteInterface.quoteForBash(path));
-      if(arguments!=null && !arguments.equals("")) cmd.append(" " + arguments);
+      if(path!=null      && !path.isEmpty())      cmd.append(RemoteInterface.quoteForBash(path));
+      if(arguments!=null && !arguments.isEmpty()) cmd.append(" ").append(arguments);
       String cmdStr=cmd.toString();
-      String cmdEnc=null;
+      String cmdEnc;
       try
       {
         cmdEnc=ShortcutEncryption.encrypt(cmdStr, keys);
       }
       catch (GeneralSecurityException e)
       {
-        Log.e(TermDebug.LOG_TAG, "Shortcut encryption failed: " + e.toString());
+        Log.e(TermDebug.LOG_TAG, "Shortcut encryption failed: " + e);
         throw new RuntimeException(e);
       }
       Intent target=  new Intent().setClass(context, RunShortcut.class);
@@ -261,11 +230,11 @@ public class      AddShortcut
       Intent wrapper= new Intent();
              wrapper.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
              wrapper.putExtra(Intent.EXTRA_SHORTCUT_INTENT, target);
-             if(shortcutName!=null && !shortcutName.equals(""))
+             if(shortcutName!=null && !shortcutName.isEmpty())
              {
                wrapper.putExtra(Intent.EXTRA_SHORTCUT_NAME, shortcutName);
              }
-             if(shortcutText!=null && !shortcutText.equals(""))
+             if(shortcutText!=null && !shortcutText.isEmpty())
              {
                wrapper.putExtra(
                  Intent.EXTRA_SHORTCUT_ICON
@@ -291,22 +260,17 @@ public class      AddShortcut
   protected void onActivityResult(int requestCode, int resultCode, Intent data)
   {
     super.onActivityResult(requestCode, resultCode, data);
-    Uri    uri=  null;
+    Uri    uri;
     path= null;
-    switch(requestCode)
-    {
-      case OP_MAKE_SHORTCUT:
-        if(data!=null && (uri=data.getData())!=null && (path=uri.getPath())!=null)
-        {
-          SP.edit().putString("lastPath", path).commit();
-          et[PATH].setText(path);
-          name=path.replaceAll(".*/", "");
-          if(et[NAME].getText().toString().equals("")) et[NAME].setText(name);
-          if(iconText[0]!=null && iconText[0].equals("")) iconText[0]=name;
-        }
-        else finish();
-        break;
-    }
+      if (requestCode == OP_MAKE_SHORTCUT) {
+          if (data != null && (uri = data.getData()) != null && (path = uri.getPath()) != null) {
+              SP.edit().putString("lastPath", path).apply();
+              et[PATH].setText(path);
+              name = path.replaceAll(".*/", "");
+              if (et[NAME].getText().toString().isEmpty()) et[NAME].setText(name);
+              if (iconText[0] != null && iconText[0].isEmpty()) iconText[0] = name;
+          } else finish();
+      }
   }
   //////////////////////////////////////////////////////////////////////
 }

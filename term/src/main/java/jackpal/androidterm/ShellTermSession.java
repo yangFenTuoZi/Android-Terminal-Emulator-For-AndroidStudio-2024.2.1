@@ -20,7 +20,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
-import jackpal.androidterm.compat.FileCompat;
+
 import jackpal.androidterm.util.TermSettings;
 
 import java.io.*;
@@ -61,15 +61,12 @@ public class ShellTermSession extends GenericTermSession {
 
         mInitialCommand = initialCommand;
 
-        mWatcherThread = new Thread() {
-            @Override
-            public void run() {
-                Log.i(TermDebug.LOG_TAG, "waiting for: " + mProcId);
-                int result = TermExec.waitFor(mProcId);
-                Log.i(TermDebug.LOG_TAG, "Subprocess exited: " + result);
-                mMsgHandler.sendMessage(mMsgHandler.obtainMessage(PROCESS_EXITED, result));
-            }
-        };
+        mWatcherThread = new Thread(() -> {
+            Log.i(TermDebug.LOG_TAG, "waiting for: " + mProcId);
+            int result = TermExec.waitFor(mProcId);
+            Log.i(TermDebug.LOG_TAG, "Subprocess exited: " + result);
+            mMsgHandler.sendMessage(mMsgHandler.obtainMessage(PROCESS_EXITED, result));
+        });
         mWatcherThread.setName("Process watcher");
     }
 
@@ -79,13 +76,13 @@ public class ShellTermSession extends GenericTermSession {
         String path = System.getenv("PATH");
         if (settings.doPathExtensions()) {
             String appendPath = settings.getAppendPath();
-            if (appendPath != null && appendPath.length() > 0) {
+            if (appendPath != null && !appendPath.isEmpty()) {
                 path = path + ":" + appendPath;
             }
 
             if (settings.allowPathPrepend()) {
                 String prependPath = settings.getPrependPath();
-                if (prependPath != null && prependPath.length() > 0) {
+                if (prependPath != null && !prependPath.isEmpty()) {
                     path = prependPath + ":" + path;
                 }
             }
@@ -106,7 +103,7 @@ public class ShellTermSession extends GenericTermSession {
         StringBuilder checkedPath = new StringBuilder(path.length());
         for (String dirname : dirs) {
             File dir = new File(dirname);
-            if (dir.isDirectory() && FileCompat.canExecute(dir)) {
+            if (dir.isDirectory() && dir.canExecute()) {
                 checkedPath.append(dirname);
                 checkedPath.append(":");
             }
@@ -123,7 +120,7 @@ public class ShellTermSession extends GenericTermSession {
     }
 
     private void sendInitialCommand(String initialCommand) {
-        if (initialCommand.length() > 0) {
+        if (!initialCommand.isEmpty()) {
             write(initialCommand + '\r');
         }
     }
@@ -139,7 +136,7 @@ public class ShellTermSession extends GenericTermSession {
             if (!file.exists()) {
                 Log.e(TermDebug.LOG_TAG, "Shell " + arg0 + " not found!");
                 throw new FileNotFoundException(arg0);
-            } else if (!FileCompat.canExecute(file)) {
+            } else if (!file.canExecute()) {
                 Log.e(TermDebug.LOG_TAG, "Shell " + arg0 + " not executable!");
                 throw new FileNotFoundException(arg0);
             }
@@ -158,7 +155,7 @@ public class ShellTermSession extends GenericTermSession {
         final int WHITESPACE = 1;
         final int INQUOTE = 2;
         int state = WHITESPACE;
-        ArrayList<String> result =  new ArrayList<String>();
+        ArrayList<String> result = new ArrayList<>();
         int cmdLen = cmd.length();
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < cmdLen; i++) {
@@ -182,7 +179,7 @@ public class ShellTermSession extends GenericTermSession {
                     state = PLAIN;
                     builder.append(c);
                 }
-            } else if (state == INQUOTE) {
+            } else {
                 if (c == '\\') {
                     if (i + 1 < cmdLen) {
                         i += 1;

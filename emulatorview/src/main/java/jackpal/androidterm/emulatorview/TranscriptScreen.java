@@ -284,7 +284,7 @@ class TranscriptScreen implements Screen {
                     cx, cursorIndex, cursorIncr, cursorWidth, cursorMode);
         }
 
-        if (cx >= 0 && imeText.length() > 0) {
+        if (cx >= 0 && !imeText.isEmpty()) {
             int imeLength = Math.min(columns, imeText.length());
             int imeOffset = imeText.length() - imeLength;
             int imePosition = Math.min(cx, columns - imeLength);
@@ -385,7 +385,6 @@ class TranscriptScreen implements Screen {
                     }
                 } catch (ArrayIndexOutOfBoundsException e) {
                     // XXX This probably shouldn't happen ...
-                    style = defaultColor;
                 }
 
                 if (c != ' ' || style != defaultColor) {
@@ -464,11 +463,7 @@ class TranscriptScreen implements Screen {
         {
             return mData.getLine(row);
         }
-        catch (IllegalArgumentException e)
-        {
-            return null;
-        }
-        catch (NullPointerException e)
+        catch (IllegalArgumentException | NullPointerException e)
         {
             return null;
         }

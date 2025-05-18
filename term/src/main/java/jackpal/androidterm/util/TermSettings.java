@@ -17,7 +17,6 @@
 package jackpal.androidterm.util;
 
 import jackpal.androidterm.R;
-import jackpal.androidterm.compat.AndroidCompat;
 
 import android.content.SharedPreferences;
 import android.content.res.Resources;
@@ -288,11 +287,11 @@ public class TermSettings {
     }
 
     public int getBackKeyCharacter() {
-        switch (mBackKeyAction) {
-            case BACK_KEY_SENDS_ESC: return 27;
-            case BACK_KEY_SENDS_TAB: return 9;
-            default: return 0;
-        }
+        return switch (mBackKeyAction) {
+            case BACK_KEY_SENDS_ESC -> 27;
+            case BACK_KEY_SENDS_TAB -> 9;
+            default -> 0;
+        };
     }
 
     public int getControlKeyId() {
