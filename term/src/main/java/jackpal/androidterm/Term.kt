@@ -15,7 +15,6 @@
  */
 package jackpal.androidterm
 
-import android.app.ActionBar
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
@@ -31,6 +30,7 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiManager.WifiLock
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -38,7 +38,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.os.PowerManager.WakeLock
 import android.text.TextUtils
-import android.util.DisplayMetrics
+import android.util.AttributeSet
 import android.util.Log
 import android.view.ContextMenu
 import android.view.ContextMenu.ContextMenuInfo
@@ -49,17 +49,18 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.net.toUri
 import androidx.core.view.get
 import androidx.core.view.size
 import androidx.preference.PreferenceManager
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import jackpal.androidterm.TermService.TSBinder
 import jackpal.androidterm.emulatorview.EmulatorView
 import jackpal.androidterm.emulatorview.TermSession
@@ -113,7 +114,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
             if (mPendingPathBroadcasts <= 0 && mTermService != null) {
                 populateViewFlipper()
-                populateWindowList()
             }
         }
     }
@@ -125,7 +125,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             mTermService = binder.service
             if (mPendingPathBroadcasts <= 0) {
                 populateViewFlipper()
-                populateWindowList()
             }
         }
 
@@ -134,54 +133,9 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
     }
 
-    private var mActionBar: ActionBar? = null
-    private var mActionBarMode = TermSettings.ACTION_BAR_MODE_NONE
-
-    private var mWinListAdapter: WindowListAdapter? = null
-
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, s: String?) {
         sharedPreferences?.let { mSettings?.readPrefs(it) }
     }
-
-    private inner class WindowListActionBarAdapter(sessions: SessionList?) :
-        WindowListAdapter(sessions), UpdateCallback {
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val label = TextView(this@Term)
-            val title = getSessionTitle(position, getString(R.string.window_title, position + 1))
-            label.text = title
-            return label
-        }
-
-        override fun getDropDownView(position: Int, convertView: View, parent: ViewGroup): View {
-            return super.getView(position, convertView, parent)
-        }
-
-        override fun onUpdate() {
-            notifyDataSetChanged()
-            mViewFlipper?.displayedChild?.let { mActionBar?.setSelectedNavigationItem(it) }
-        }
-    }
-
-    private val mWinListItemSelected: ActionBar.OnNavigationListener =
-        object : ActionBar.OnNavigationListener {
-            override fun onNavigationItemSelected(position: Int, id: Long): Boolean {
-                val oldPosition = mViewFlipper?.displayedChild
-                if (position != oldPosition) {
-                    mViewFlipper?.size?.let {
-                        if (position >= it) {
-                            mTermSessions?.get(position)?.let { session ->
-                                mViewFlipper?.addView(createEmulatorView(session))
-                            }
-                        }
-                    }
-                    mViewFlipper?.setDisplayedChild(position)
-                    if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
-                        mActionBar?.hide()
-                    }
-                }
-                return true
-            }
-        }
 
     private var mHaveFullHwKeyboard = false
 
@@ -279,7 +233,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
          * Make sure the back button always leaves the application.
          */
         private fun backkeyInterceptor(keyCode: Int, event: KeyEvent?): Boolean {
-            if (keyCode == KeyEvent.KEYCODE_BACK && mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES && mActionBar != null && mActionBar?.isShowing == true) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
                 /* We need to intercept the key event before the view sees it,
                    otherwise the view will handle it before we get it */
                 onKeyUp(keyCode, event)
@@ -291,6 +245,8 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     private val mHandler = Handler(HandlerThread("mThread").apply { start() }.looper)
+
+    private var mActionBarMode: Int = TermSettings.ACTION_BAR_MODE_NONE
 
     public override fun onCreate(icicle: Bundle?) {
         super.onCreate(icicle)
@@ -306,7 +262,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         mPrefs.registerOnSharedPreferenceChangeListener(this)
 
         var broadcast = Intent(ACTION_PATH_BROADCAST)
-        broadcast.addFlags(FLAG_INCLUDE_STOPPED_PACKAGES)
+        broadcast.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
         mPendingPathBroadcasts++
         sendOrderedBroadcast(
             broadcast,
@@ -334,32 +290,23 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         tsIntent = Intent(this, TermService::class.java)
         startService(tsIntent)
 
-        mSettings?.let {
-            mActionBarMode = it.actionBarMode()
-        }
-
         setContentView(R.layout.term_activity)
         setSupportActionBar(findViewById<MaterialToolbar>(R.id.toolbar))
         mViewFlipper = findViewById<TermViewFlipper?>(VIEW_FLIPPER)
+        // 初始化 Spinner
 
         val pm = getSystemService(POWER_SERVICE) as PowerManager
-        mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TermDebug.LOG_TAG)
+        mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Term:wakelock")
         val wm = getSystemService(WIFI_SERVICE) as WifiManager
-        mWifiLock = wm.createWifiLock(WIFI_MODE_FULL_HIGH_PERF, TermDebug.LOG_TAG)
-
-        val actionBar = getActionBar()
-        if (actionBar != null) {
-            mActionBar = actionBar
-            actionBar.navigationMode = ActionBar.NAVIGATION_MODE_LIST
-            actionBar.setDisplayOptions(0, ActionBar.DISPLAY_SHOW_TITLE)
-            if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
-                actionBar.hide()
-            }
-        }
+        mWifiLock = wm.createWifiLock(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+            "Term:wifilock"
+        )
 
         mHaveFullHwKeyboard = checkHaveFullHwKeyboard(getResources().configuration)
 
         updatePrefs()
+        mActionBarMode = mSettings?.actionBarMode() ?: TermSettings.ACTION_BAR_MODE_NONE
         mAlreadyStarted = true
     }
 
@@ -407,7 +354,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             if (mTermSessions?.isEmpty() == true) {
                 try {
                     mTermSessions?.add(createTermSession())
-                } catch (e: IOException) {
+                } catch (_: IOException) {
                     Toast.makeText(this, "Failed to start terminal session", Toast.LENGTH_LONG)
                         .show()
                     finish()
@@ -434,26 +381,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
     }
 
-    private fun populateWindowList() {
-        if (mActionBar == null) {
-            // Not needed
-            return
-        }
-        if (mTermSessions != null) {
-            val position = mViewFlipper?.displayedChild
-            if (mWinListAdapter == null) {
-                mWinListAdapter = WindowListActionBarAdapter(mTermSessions)
-
-                mActionBar?.setListNavigationCallbacks(mWinListAdapter, mWinListItemSelected)
-            } else {
-                mWinListAdapter?.setSessions(mTermSessions)
-            }
-            mWinListAdapter?.let { mViewFlipper?.addCallback(it) }
-
-            position?.let { mActionBar?.setSelectedNavigationItem(it) }
-        }
-    }
-
     public override fun onDestroy() {
         super.onDestroy()
 
@@ -473,11 +400,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
     }
 
-    private fun restart() {
-        startActivity(intent)
-        finish()
-    }
-
     @Throws(IOException::class)
     private fun createTermSession(): TermSession {
         val settings: TermSettings = mSettings ?: throw IOException("No settings available")
@@ -487,8 +409,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     private fun createEmulatorView(session: TermSession): TermView {
-        val metrics = DisplayMetrics()
-        windowManager.defaultDisplay.getMetrics(metrics)
+        val metrics = resources.displayMetrics
         val emulatorView = TermView(this, session, metrics)
 
         emulatorView.setExtGestureListener(EmulatorViewGestureListener(emulatorView))
@@ -514,8 +435,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     private fun updatePrefs() {
         mUseKeyboardShortcuts = mSettings?.useKeyboardShortcutsFlag == true
 
-        val metrics = DisplayMetrics()
-        windowManager.defaultDisplay.getMetrics(metrics)
+        val metrics = resources.displayMetrics
 
         mSettings?.let { mViewFlipper?.updatePrefs(it) }
 
@@ -534,21 +454,17 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
         run {
             val win = window
-            val params = win.attributes
-            val fullScreen = WindowManager.LayoutParams.FLAG_FULLSCREEN
-            val desiredFlag = if (mSettings?.showStatusBar() == true) 0 else fullScreen
-            if (desiredFlag != (params.flags and fullScreen) || mActionBarMode != mSettings?.actionBarMode()) {
-                if (mAlreadyStarted) {
-                    // Can't switch to/from fullscreen after
-                    // starting the activity.
-                    restart()
+            if (mSettings?.showStatusBar() == true) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    win.insetsController?.show(WindowInsets.Type.statusBars())
                 } else {
-                    win.setFlags(desiredFlag, fullScreen)
-                    if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
-                        if (mActionBar != null) {
-                            mActionBar?.hide()
-                        }
-                    }
+                    win.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                }
+            } else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    win.insetsController?.hide(WindowInsets.Type.statusBars())
+                } else {
+                    win.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
                 }
             }
         }
@@ -584,12 +500,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         mViewFlipper?.onPause()
         if (mTermSessions != null) {
             mTermSessions?.removeCallback(this)
-
-            if (mWinListAdapter != null) {
-                mTermSessions?.removeCallback(mWinListAdapter!!)
-                mTermSessions?.removeTitleChangedListener(mWinListAdapter!!)
-                mViewFlipper?.removeCallback(mWinListAdapter!!)
-            }
         }
 
         mViewFlipper?.removeAllViews()
@@ -611,11 +521,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
         val v = mViewFlipper?.currentView as EmulatorView?
         v?.updateSize(false)
-
-        if (mWinListAdapter != null) {
-            // Force Android to redraw the label in the navigation dropdown
-            mWinListAdapter?.notifyDataSetChanged()
-        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -634,7 +539,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         } else if (id == R.id.menu_close_window) {
             confirmCloseWindow()
         } else if (id == R.id.menu_window_list) {
-            startActivityForResult(Intent(this, WindowList::class.java), REQUEST_CHOOSE_WINDOW)
+            windowList()
         } else if (id == R.id.menu_reset) {
             doResetTerminal()
             val toast = Toast.makeText(this, R.string.reset_toast_notification, Toast.LENGTH_LONG)
@@ -657,10 +562,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             )
             startActivity(openHelp)
         }
-        // Hide the action bar if appropriate
-        if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES) {
-            mActionBar?.hide()
-        }
         return super.onOptionsItemSelected(item)
     }
 
@@ -680,7 +581,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
             mViewFlipper?.addView(view)
             mViewFlipper?.size?.let { mViewFlipper?.setDisplayedChild(it - 1) }
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             Toast.makeText(this, "Failed to create a session", Toast.LENGTH_SHORT).show()
         }
     }
@@ -691,12 +592,12 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         b.setMessage(R.string.confirm_window_close_message)
         val closeWindow = Runnable { this.doCloseWindow() }
         b.setPositiveButton(
-            android.R.string.yes,
+            android.R.string.ok,
             DialogInterface.OnClickListener { dialog: DialogInterface?, id: Int ->
                 dialog?.dismiss()
                 mHandler.post(closeWindow)
             })
-        b.setNegativeButton(android.R.string.no, null)
+        b.setNegativeButton(android.R.string.cancel, null)
         b.show()
     }
 
@@ -720,26 +621,27 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
     }
 
-    override fun onActivityResult(request: Int, result: Int, data: Intent?) {
-        super.onActivityResult(request, result, data)
-        if (request == REQUEST_CHOOSE_WINDOW) {
-            if (result == RESULT_OK && data != null) {
-                val position = data.getIntExtra(EXTRA_WINDOW_ID, -2)
-                if (position >= 0) {
-                    // Switch windows after session list is in sync, not here
-                    onResumeSelectWindow = position
-                } else if (position == -1) {
-                    doCreateNewWindow()
-                    mTermSessions?.size?.let { onResumeSelectWindow = it - 1 }
-                }
-            } else {
-                // Close the activity if user closed all sessions
-                // TODO the left path will be invoked when nothing happened, but this Activity was destroyed!
-                if (mTermSessions == null || mTermSessions?.isEmpty() == true) {
-                    mStopServiceOnFinish = true
-                    finish()
-                }
+    private fun windowList() {
+        val adapter = WindowListAdapter(mTermSessions)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.window_list)
+            .setAdapter(adapter) { _, which ->
+                mViewFlipper?.setDisplayedChild(which)
             }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    class CloseButton : AppCompatImageView {
+        constructor(context: Context) : super(context)
+        constructor(context: Context, attrs: AttributeSet) : super(context, attrs)
+        constructor(context: Context, attrs: AttributeSet, style: Int) : super(context, attrs, style)
+
+        override fun setPressed(pressed: Boolean) {
+            if (pressed && (parent as View).isPressed) {
+                return
+            }
+            super.setPressed(pressed)
         }
     }
 
@@ -843,10 +745,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
-                if (mActionBarMode == TermSettings.ACTION_BAR_MODE_HIDES && mActionBar != null && mActionBar?.isShowing == true) {
-                    mActionBar?.hide()
-                    return true
-                }
                 when (mSettings?.backKeyAction) {
                     TermSettings.BACK_KEY_STOPS_SERVICE -> {
                         mStopServiceOnFinish = true
@@ -868,12 +766,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
                 }
             }
 
-            KeyEvent.KEYCODE_MENU -> if (mActionBar != null && mActionBar?.isShowing != true) {
-                mActionBar?.show()
-                return true
-            } else {
-                return super.onKeyUp(keyCode, event)
-            }
+            KeyEvent.KEYCODE_MENU -> return super.onKeyUp(keyCode, event)
 
             else -> return super.onKeyUp(keyCode, event)
         }
@@ -947,7 +840,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
                         getString(R.string.email_transcript_chooser_title)
                     )
                 )
-            } catch (e: ActivityNotFoundException) {
+            } catch (_: ActivityNotFoundException) {
                 Toast.makeText(
                     this,
                     R.string.email_transcript_no_email_activity_found,
@@ -1043,18 +936,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         invalidateOptionsMenu()
     }
 
-    private fun doToggleActionBar() {
-        val bar = mActionBar
-        if (bar == null) {
-            return
-        }
-        if (bar.isShowing) {
-            bar.hide()
-        } else {
-            bar.show()
-        }
-    }
-
     private fun doUIToggle(x: Int, y: Int, width: Int, height: Int) {
         when (mActionBarMode) {
             TermSettings.ACTION_BAR_MODE_NONE -> if (mHaveFullHwKeyboard || y < height / 2) {
@@ -1069,7 +950,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             }
 
             TermSettings.ACTION_BAR_MODE_HIDES -> if (mHaveFullHwKeyboard || y < height / 2) {
-                doToggleActionBar()
                 return
             } else {
                 doToggleSoftKeyboard()
@@ -1103,12 +983,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         private const val SEND_CONTROL_KEY_ID = 3
         private const val SEND_FN_KEY_ID = 4
 
-        const val REQUEST_CHOOSE_WINDOW: Int = 1
-        const val EXTRA_WINDOW_ID: String = "jackpal.androidterm.window_id"
-
-        // Available on API 12 and later
-        private const val WIFI_MODE_FULL_HIGH_PERF = 3
-
         private const val ACTION_PATH_BROADCAST = "jackpal.androidterm.broadcast.APPEND_TO_PATH"
         private const val ACTION_PATH_PREPEND_BROADCAST =
             "jackpal.androidterm.broadcast.PREPEND_TO_PATH"
@@ -1116,9 +990,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             "jackpal.androidterm.permission.APPEND_TO_PATH"
         private const val PERMISSION_PATH_PREPEND_BROADCAST =
             "jackpal.androidterm.permission.PREPEND_TO_PATH"
-
-        // Available on API 12 and later
-        private const val FLAG_INCLUDE_STOPPED_PACKAGES = 0x20
 
         @Throws(IOException::class)
         fun createTermSession(
@@ -1134,4 +1005,3 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
     }
 }
-

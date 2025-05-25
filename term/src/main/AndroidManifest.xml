@@ -97,9 +97,6 @@
         <activity
             android:name="TermPreferences"
             android:label="@string/preferences" />
-        <activity
-            android:name="WindowList"
-            android:label="@string/window_list" />
 
         <service
             android:name="TermService"
@@ -110,25 +107,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
-
-        <activity
-            android:name="jackpal.androidterm.shortcuts.AddShortcut"
-            android:configChanges="orientation|keyboard|keyboardHidden"
-            android:exported="true"
-            android:label="@string/activity_shortcut_create"
-            android:launchMode="singleTop"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.CREATE_SHORTCUT" />
-            </intent-filter>
-            <intent-filter>
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/*" />
-            </intent-filter>
-        </activity>
 
         <meta-data
             android:name="com.sec.android.support.multiwindow"

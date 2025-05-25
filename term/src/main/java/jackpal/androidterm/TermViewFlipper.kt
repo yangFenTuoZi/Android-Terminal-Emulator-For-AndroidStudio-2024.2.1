@@ -130,13 +130,11 @@ class TermViewFlipper : ViewFlipper, Iterable<View> {
         if (session is GenericTermSession) {
             title = session.getTitle(title)
         }
-        if (mToast == null) {
-            mToast = Toast.makeText(contextRef, title, Toast.LENGTH_SHORT)
-            mToast?.setGravity(Gravity.CENTER, 0, 0)
-        } else {
-            mToast?.setText(title)
+        mToast?.cancel()
+        mToast = Toast.makeText(contextRef, title, Toast.LENGTH_SHORT).apply {
+            setGravity(Gravity.CENTER, 0, 0)
+            show()
         }
-        mToast?.show()
     }
 
     override fun showPrevious() {
