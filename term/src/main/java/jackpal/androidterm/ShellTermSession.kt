@@ -17,7 +17,7 @@
 package jackpal.androidterm
 
 import android.os.Handler
-import android.os.HandlerThread
+import android.os.Looper
 import android.os.Message
 import android.os.ParcelFileDescriptor
 import android.util.Log
@@ -43,7 +43,7 @@ class ShellTermSession(
     private var mWatcherThread: Thread
 
     private val PROCESS_EXITED = 1
-    private val mMsgHandler = object : Handler(HandlerThread("mMsgThread").apply { start() }.looper) {
+    private val mMsgHandler = object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
             if (!isRunning) return
             if (msg.what == PROCESS_EXITED) {
