@@ -23,7 +23,6 @@
    <string name="prev_window">Forrige vindu</string>
    <string name="next_window">Neste vindu</string>
    <string name="reset">Tilbakestill terminal</string>
-   <string name="send_email">Send epost til</string>
    <string name="special_keys">Spesielle tegn</string>
    <string name="toggle_soft_keyboard">Veksle virtuelt tastatur</string>
 
@@ -147,10 +146,6 @@
   <string name="permdesc_append_to_path">Lar appen tilby flere kommandoer (Legge til i PATH) til Terminalemulatoren.</string>
   <string name="perm_prepend_to_path">Overstyr kommandoer i Terminalemulatoren</string>
   <string name="permdesc_prepend_to_path">Lar appen overstyre eksisterende kommandoer med sine egene versjoner (legge til i begynnelsen av PATH) i Terminalemulatoren</string>
-
-  <string name="email_transcript_subject">Transcript fra Android Terminalemulator</string>
-  <string name="email_transcript_chooser_title">Mail transcript med:</string>
-  <string name="email_transcript_no_email_activity_found">Kunne ikke velge aktivitet for å sende transcript.</string>
 
   <string name="alt_sends_esc">Alt-tasten sender ESC</string>
   <string name="alt_sends_esc_summary_on">Alt-tasten sender ESC.</string>

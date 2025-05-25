@@ -23,7 +23,6 @@
    <string name="prev_window">前のウインドウ</string>
    <string name="next_window">次のウインドウ</string>
    <string name="reset">端末をリセット</string>
-   <string name="send_email">メール送信</string>
    <string name="special_keys">特殊キー</string>
    <string name="toggle_soft_keyboard">ソフトキーボード</string>
 
@@ -140,10 +139,6 @@
   <string name="permdesc_append_to_path">アプリケーションに対して，端末エミュレータのコマンドを追加する(PATHにディレクトリを追加する)ことを許可する.</string>
   <string name="perm_prepend_to_path">端末エミュレータのコマンドを上書きする</string>
   <string name="permdesc_prepend_to_path">アプリケーションに対して，端末エミュレータが持つ既存のコマンドを，アプリケーション独自のバージョンに置き換える(PATHの先頭にディレクトリを追加する)ことを許可する.</string>
-
-  <string name="email_transcript_subject">Transcript from Terminal Emulator for Android</string>
-  <string name="email_transcript_chooser_title">メール転写の選択:</string>
-  <string name="email_transcript_no_email_activity_found">転写を送信するEメール用アクティビティが選択できませんでした.</string>
 
   <string name="alt_sends_esc">AltキーでESCを送出</string>
   <string name="alt_sends_esc_summary_on">Alt keyでESCを送出する.</string>

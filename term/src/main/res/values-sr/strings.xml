@@ -23,7 +23,6 @@
    <string name="prev_window">Прет. прозор</string>
    <string name="next_window">След. прозор</string>
    <string name="reset">Поново постави терм</string>
-   <string name="send_email">Пошаљи е-поштом</string>
    <string name="special_keys">Посебни тастери</string>
    <string name="toggle_soft_keyboard">Пребаци софтверску тастатуру</string>
 
@@ -148,10 +147,6 @@
   <string name="perm_prepend_to_path">Премошћавање наредби у Емулатору Терминала</string>
   <string name="permdesc_prepend_to_path">Дозвољава апликацији да премости постојеће наредбе својим (префиксује директоријуме у PATH) у Емулатору Терминала за Андроид.</string>
 
-  <string name="email_transcript_subject">Препис са Емулатора Терминала за Андроид</string>
-  <string name="email_transcript_chooser_title">Пошаљи препис користећи:</string>
-  <string name="email_transcript_no_email_activity_found">Не могу да изаберем активност е-поште за слање преписа.</string>
-
   <string name="alt_sends_esc">Алт тастер шаље ESC</string>
   <string name="alt_sends_esc_summary_on">Алт тастер шаље ESC.</string>
   <string name="alt_sends_esc_summary_off">Алт тастер не шаље ESC.</string>
@@ -163,8 +158,7 @@
   <string name="use_keyboard_shortcuts_summary_on">Ctrl-Tab: пребаци прозор, Ctrl-Shift-N: нови прозор, Ctrl-Shift-V: налепи.</string>
   <string name="use_keyboard_shortcuts_summary_off">Пречице тастатуре су онемогућене.</string>
 
-  <string name="help">Помоћ</string>
-    <string name="activity_term_here_title">Терминал овде</string>
+  <string name="activity_term_here_title">Терминал овде</string>
   <!-- BEGIN SHORTCUT RELATED STRINGS -->
   <!-- AndroidManifest.xml -->
   <string name="activity_shortcut_create">"Терминалска пречица"</string>

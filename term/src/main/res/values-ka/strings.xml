@@ -23,7 +23,6 @@
    <string name="prev_window">წინა ფანჯარა</string>
    <string name="next_window">შემდეგი ფანჯარა</string>
    <string name="reset">ტერმინალის რესტარტი</string>
-   <string name="send_email">ელ-ფოსტის გაგზავნა</string>
    <string name="special_keys">სპეციალური ღილაკები</string>
    <string name="toggle_soft_keyboard">პროგრამული კლავიატურის ჩართ./გამორთ.</string>
 

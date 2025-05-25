@@ -24,7 +24,6 @@
    <string name="prev_window">Fenêtre Préc.</string>
    <string name="next_window">Fenêtre Suiv.</string>
    <string name="reset">Terminal par défaut</string>
-   <string name="send_email">Envoyer un e-mail</string>
    <string name="special_keys">Touches spéciales</string>
    <string name="toggle_soft_keyboard">Afficher/Masquer clavier</string>
 
@@ -140,10 +139,6 @@
    <string name="control_key_dialog_fn_text">FNKEY 1..9 : F1-F9\nFNKEY 0 : F10\nFNKEY W : Haut\nFNKEY A : Gauche\nFNKEY S : Bas\nFNKEY D : Droite\nFNKEY P : PageHaut\nFNKEY N : PageBas\nFNKEY T : Tab\nFNKEY L : | (pipe)\nFNKEY U : _ (underscore)\nFNKEY E : Control-[ (ESC)\nFNKEY X : Suppr.\nFNKEY I : Inser.\nFNKEY H : Début\nFNKEY F : Fin\nFNKEY . : Control-\\\n</string>
    <string name="control_key_dialog_fn_disabled_text">Touche fonction non paramètrée.</string>
 
-   <string name="email_transcript_subject">Transcription depuis Terminal Emulator</string>
-   <string name="email_transcript_chooser_title">La transcription par email utilise :</string>
-   <string name="email_transcript_no_email_activity_found">Impossible de choisir une activité de messagerie pour envoyer la transcription</string>
-
    <string name="perm_run_script">Lancer des commandes tierces</string>
    <string name="permdesc_run_script">Permettre à une application d\'ouvrir une nouvelle fenêtre dans Terminal Emulator en exécutant des commandes avec les permissions de l\'application comme l\'accès à Internet et à votre carte SD</string>
    <string name="perm_append_to_path">Ajouter des commandes</string>
@@ -158,6 +153,4 @@
   <string name="use_keyboard_shortcuts_summary_on">Ctrl-Tab: cycle window, Ctrl-Shift-N: nouvelle fenêtre, Ctrl-Shift-V: coller.</string>
   <string name="use_keyboard_shortcuts_summary_off">Raccourcis clavier désactivés.</string>
 
-  <string name="help">Aide</string>
-  <!--<string name="help_url">http://jackpal.github.com/Android-Terminal-Emulator/help/index.html</string>-->
 </resources>

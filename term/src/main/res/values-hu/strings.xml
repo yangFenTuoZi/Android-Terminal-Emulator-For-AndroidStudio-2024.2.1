@@ -23,7 +23,6 @@
    <string name="prev_window">Előző ablak</string>
    <string name="next_window">Következő ablak</string>
    <string name="reset">Alaphelyzet</string>
-   <string name="send_email">Küldés emailben</string>
    <string name="special_keys">Speciális billentyűk</string>
    <string name="toggle_soft_keyboard">Billentyűzet ki/be</string>
 
@@ -148,10 +147,6 @@
   <string name="perm_prepend_to_path">Parancsok felülírása a Terminál Emulátorban</string>
   <string name="permdesc_prepend_to_path">Az alkalmazások felülírhatják a meglévő parancsokat (hozzáfűzhetnek a PATH változó elejéhez) az Android Terminál Emulátorban.</string>
 
-  <string name="email_transcript_subject">Android Terminal Emulátor terminál másolat</string>
-  <string name="email_transcript_chooser_title">Terminál küldése:</string>
-  <string name="email_transcript_no_email_activity_found">Nem sikerült kiválasztani az email alkalmazást.</string>
-
   <string name="alt_sends_esc">Az Alt billentyű ESC-et küld</string>
   <string name="alt_sends_esc_summary_on">Az Alt billentyű ESC-et küld.</string>
   <string name="alt_sends_esc_summary_off">Az Alt billentyű nem ESC-et küld.</string>
@@ -163,7 +158,6 @@
   <string name="use_keyboard_shortcuts_summary_on">Ctrl-Tab: váltás az ablakok között, Ctrl-Shift-N: új ablak, Ctrl-Shift-V: beillesztés.</string>
   <string name="use_keyboard_shortcuts_summary_off">Billentyű-parancsok letiltva.</string>
 
-  <string name="help">Súgó</string>
   <!-- BEGIN SHORTCUT RELATED STRINGS -->
   <!-- AndroidManifest.xml -->
   <string name="activity_shortcut_create">"Terminál parancsikon"</string>

@@ -23,7 +23,6 @@
    <string name="prev_window">Prev window</string>
    <string name="next_window">Next window</string>
    <string name="reset">Reset term</string>
-   <string name="send_email">Email to</string>
    <string name="special_keys">Special keys</string>
    <string name="toggle_soft_keyboard">Toggle soft keyboard</string>
 
@@ -148,10 +147,6 @@
   <string name="perm_prepend_to_path">Override commands in Terminal Emulator</string>
   <string name="permdesc_prepend_to_path">Allows application to override existing commands with its own versions (prepend directories to the PATH) in Terminal Emulator for Android.</string>
 
-  <string name="email_transcript_subject">Transcript from Terminal Emulator for Android</string>
-  <string name="email_transcript_chooser_title">Mail transcript using:</string>
-  <string name="email_transcript_no_email_activity_found">Could not choose an email activity to send transcript.</string>
-
   <string name="alt_sends_esc">Alt key sends ESC</string>
   <string name="alt_sends_esc_summary_on">Alt key sends ESC.</string>
   <string name="alt_sends_esc_summary_off">Alt key does not send ESC.</string>
@@ -163,8 +158,6 @@
   <string name="use_keyboard_shortcuts_summary_on">Ctrl-Tab: cycle window, Ctrl-Shift-N: new window, Ctrl-Shift-V: paste.</string>
   <string name="use_keyboard_shortcuts_summary_off">Keyboard shortcuts disabled.</string>
 
-  <string name="help">Help</string>
-  <string name="help_url" translatable="false">http://jackpal.github.com/Android-Terminal-Emulator/help/index.html</string>
   <string name="activity_term_here_title">Term here</string>
   <!-- BEGIN SHORTCUT RELATED STRINGS -->
   <!-- AndroidManifest.xml -->

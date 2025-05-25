@@ -23,7 +23,6 @@
   <string name="prev_window">החלון הקודם</string>
   <string name="next_window">החלון הבא</string>
   <string name="reset">איפוס המונח</string>
-  <string name="send_email">דואר אלקטרוני ל</string>
   <string name="special_keys">מקשים מיוחדים</string>
   <string name="toggle_soft_keyboard">מתג מקלדת מסך</string>
   <string name="reset_toast_notification">מצב חלון המסוף אופס.</string>
@@ -105,9 +104,6 @@
   <string name="perm_run_script">הפעל פקודות שרירותיות במסוף</string>
   <string name="perm_append_to_path">הוסף פקודות למסוף</string>
   <string name="perm_prepend_to_path">דרוס פקודות ב-Terminal Emulator</string>
-  <string name="email_transcript_subject">תעתיק של אימולטור מסוף באנדרואיד</string>
-  <string name="email_transcript_chooser_title">תעתיק מייל באמצעות:</string>
-  <string name="email_transcript_no_email_activity_found">לא הצליחתי למצוא לקוח מייל כדי לשלוח תעתיק.</string>
   <string name="alt_sends_esc">ALT שולח ESC</string>
   <string name="alt_sends_esc_summary_on">ALT שולח ESC.</string>
   <string name="alt_sends_esc_summary_off">מקש ALT לא שולח ESC.</string>

@@ -8,7 +8,6 @@
     <string name="prev_window">Попереднє вікно</string>
     <string name="next_window">Наступне вікно</string>
     <string name="reset">Скинути термінал</string>
-    <string name="send_email">Відіслати Email</string>
     <string name="special_keys">Спеціальні клавіші</string>
     <string name="toggle_soft_keyboard">Екранна клавіатура</string>
     <string name="reset_toast_notification">"Термінальний стан цього вікна було скинуто."</string>
@@ -107,9 +106,6 @@ FNKEY . : Control-\\
     <string name="permdesc_append_to_path">Програма зможе забезпечити додаткові команди (додати каталоги в ШЛЯХ) для емулятора терміналу Android.</string>
     <string name="perm_prepend_to_path">Перевизначення команд в Емуляторі Терміналу</string>
     <string name="permdesc_prepend_to_path">Дозволяє програмі перевизначити існуючі команди з власною версією (додайте на початку каталогів ШЛЯХ) в Емуляторі Терміналу Android.</string>
-    <string name="email_transcript_subject">Розшифрування для Емулятора Терміналу Android</string>
-    <string name="email_transcript_chooser_title">Поштове розшифрування за допомогою:</string>
-    <string name="email_transcript_no_email_activity_found">Не можу вибрати поштову діяльність для відправки розшифрування.</string>
     <string name="alt_sends_esc">Клавіша Alt посилає ESC</string>
     <string name="alt_sends_esc_summary_on">Клавіша Alt посилає ESC.</string>
     <string name="alt_sends_esc_summary_off">Клавіша Alt не посилає ESC.</string>

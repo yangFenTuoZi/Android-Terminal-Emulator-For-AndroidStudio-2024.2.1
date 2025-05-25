@@ -133,14 +133,10 @@
     <string name="colorvalue_letter_green">G</string>
     <string name="colorvalue_letter_red">R</string>
     <string name="dialog_title_orientation_preference">Bildschirmausrichtung</string>
-    <string name="email_transcript_no_email_activity_found">Konnte keine App zum Verschicken der E-Mail finden</string>
-    <string name="email_transcript_chooser_title">E-Mail Verschicken mit:</string>
-    <string name="email_transcript_subject">Auszug von Terminal Emulator for Android</string>
     <string name="fsnavigator_change_theme">Theme ändern</string>
     <string name="fsnavigator_no_external_storage">Externer Speicher nicht verfügbar</string>
     <string name="fsnavigator_optional_enter_path">Oder hier einen Pfad eingeben.</string>
     <string name="fsnavigator_title">DATEI AUSWÄHLEN</string>
-    <string name="help">Hife</string>
     <string name="perm_append_to_path">Befehle zum Terminal Emulator hinzufügen</string>
     <string name="perm_prepend_to_path">Befehle im Terminal Emulator Überschreiben</string>
     <string name="permdesc_append_to_path">Erlaubt es Applikationen dem Terminal Emulator für Android zusätzliche Befehle zur Verfügung zu stellen (fügt Verzeichnisse an die PATH Valriable an).</string>
@@ -159,6 +155,5 @@
     <string name="summary_do_path_extensions_preference">Soll es anderen Apps erlaubt sein zusätliche Befehle zur Verfügung zu stellen? (An PATH anfügen)</string>
     <string name="summary_allow_prepend_path_preference">Soll es anderen Apps erlaubt sein, existierende Befehle zu überschreiben (Vor PATH einfügen).</string>
     <string name="send_fn_key">Sende FN-Taste</string>
-    <string name="send_email">Teilen per E-Mail</string>
     <string name="send_control_key">Sende Strg-Taste</string>
 </resources>

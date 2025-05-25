@@ -3,7 +3,6 @@
     <string name="application_terminal">Terminalemulator</string>
     <string name="preferences">Inställningar</string>
     <string name="reset">Återställ terminal</string>
-    <string name="send_email">E-posta till</string>
     <string name="special_keys">Special tangenter</string>
     <string name="toggle_soft_keyboard">Växla till virtuellt tangentbord</string>
     <string name="enable_wakelock">Aktivera VäckningsLås</string>

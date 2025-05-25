@@ -23,7 +23,6 @@
    <string name="prev_window">Ventana anterior</string>
    <string name="next_window">Ventana posterior</string>
    <string name="reset">Reiniciar consola</string>
-   <string name="send_email">Enviar email</string>
    <string name="special_keys">Teclas especiales</string>
    <string name="toggle_soft_keyboard">Ver/ocultar teclado</string>
 
@@ -148,10 +147,6 @@
   <string name="perm_prepend_to_path">Sobreescribir comandos del Terminal</string>
   <string name="permdesc_prepend_to_path">Otras aplicaciones pueden sobreescribir comandos ya existentes del PATH.</string>
 
-  <string name="email_transcript_subject">Enviar correo electrónico sobre Terminal</string>
-  <string name="email_transcript_chooser_title">Enviar correo usando:</string>
-  <string name="email_transcript_no_email_activity_found">No hay aplicaciones de email disponibles.</string>
-
   <string name="alt_sends_esc">Tecla Alt como ESC</string>
   <string name="alt_sends_esc_summary_on">La tecla Alt funciona como ESC.</string>
   <string name="alt_sends_esc_summary_off">La tecla Alt no funciona como ESC.</string>
@@ -163,7 +158,6 @@
   <string name="use_keyboard_shortcuts_summary_on">Ctrl-Tab: cambiar ventana, Ctrl-Shift-N: nueva ventana, Ctrl-Shift-V: pegar.</string>
   <string name="use_keyboard_shortcuts_summary_off">Atajos de teclado desactivados.</string>
 
-  <string name="help">Ayuda</string>
     <string name="activity_term_here_title">Terminal aquí</string>
   
   <!-- BEGIN SHORTCUT RELATED STRINGS -->

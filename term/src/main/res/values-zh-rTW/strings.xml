@@ -18,7 +18,6 @@
    <string name="application_terminal">模擬終端</string>
    <string name="preferences">設定</string>
    <string name="reset">結束</string>
-   <string name="send_email">以電郵傳送</string>
    <string name="special_keys">特別按鍵</string>
    <string name="toggle_soft_keyboard">顯示／隱藏鍵盤</string>
 

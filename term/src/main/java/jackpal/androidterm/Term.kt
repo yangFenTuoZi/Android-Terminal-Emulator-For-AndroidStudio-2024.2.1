@@ -16,7 +16,6 @@
 package jackpal.androidterm
 
 import android.app.AlertDialog
-import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -43,7 +42,6 @@ import android.util.Log
 import android.view.ContextMenu
 import android.view.ContextMenu.ContextMenuInfo
 import android.view.GestureDetector.SimpleOnGestureListener
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
@@ -530,38 +528,23 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        val id = item.itemId
-        if (id == R.id.menu_preferences) {
-            doPreferences()
-        } else if (id == R.id.menu_new_window) {
-            doCreateNewWindow()
-        } else if (id == R.id.menu_close_window) {
-            confirmCloseWindow()
-        } else if (id == R.id.menu_window_list) {
-            windowList()
-        } else if (id == R.id.menu_reset) {
-            doResetTerminal()
-            val toast = Toast.makeText(this, R.string.reset_toast_notification, Toast.LENGTH_LONG)
-            toast.setGravity(Gravity.CENTER, 0, 0)
-            toast.show()
-        } else if (id == R.id.menu_send_email) {
-            doEmailTranscript()
-        } else if (id == R.id.menu_special_keys) {
-            doDocumentKeys()
-        } else if (id == R.id.menu_toggle_soft_keyboard) {
-            doToggleSoftKeyboard()
-        } else if (id == R.id.menu_toggle_wakelock) {
-            doToggleWakeLock()
-        } else if (id == R.id.menu_toggle_wifilock) {
-            doToggleWifiLock()
-        } else if (id == R.id.action_help) {
-            val openHelp = Intent(
-                Intent.ACTION_VIEW,
-                getString(R.string.help_url).toUri()
-            )
-            startActivity(openHelp)
+        var result = true
+        when(item.itemId) {
+            R.id.menu_preferences -> doPreferences()
+            R.id.menu_new_window -> doCreateNewWindow()
+            R.id.menu_close_window -> confirmCloseWindow()
+            R.id.menu_window_list -> windowList()
+            R.id.menu_reset -> {
+                doResetTerminal()
+                Toast.makeText(this, R.string.reset_toast_notification, Toast.LENGTH_LONG).show()
+            }
+            R.id.menu_special_keys -> doDocumentKeys()
+            R.id.menu_toggle_soft_keyboard -> doToggleSoftKeyboard()
+            R.id.menu_toggle_wakelock -> doToggleWakeLock()
+            R.id.menu_toggle_wifilock -> doToggleWifiLock()
+            else -> result = super.onOptionsItemSelected(item)
         }
-        return super.onOptionsItemSelected(item)
+        return result
     }
 
     private fun doCreateNewWindow() {
@@ -810,44 +793,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     private fun doResetTerminal() {
         val session = this.currentTermSession
         session?.reset()
-    }
-
-    private fun doEmailTranscript() {
-        val session = this.currentTermSession
-        if (session != null) {
-            // Don't really want to supply an address, but
-            // currently it's required, otherwise nobody
-            // wants to handle the intent.
-            val addr = "user@example.com"
-            val intent =
-                Intent(
-                    Intent.ACTION_SENDTO, ("mailto:$addr").toUri()
-                )
-
-            var subject: String? = getString(R.string.email_transcript_subject)
-            val title = session.title
-            if (title != null) {
-                subject = "$subject - $title"
-            }
-            intent.putExtra(Intent.EXTRA_SUBJECT, subject)
-            intent.putExtra(
-                Intent.EXTRA_TEXT,
-                session.transcriptText?.trim { it <= ' ' })
-            try {
-                startActivity(
-                    Intent.createChooser(
-                        intent,
-                        getString(R.string.email_transcript_chooser_title)
-                    )
-                )
-            } catch (_: ActivityNotFoundException) {
-                Toast.makeText(
-                    this,
-                    R.string.email_transcript_no_email_activity_found,
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
     }
 
     private fun doCopyAll() {

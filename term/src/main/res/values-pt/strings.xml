@@ -23,7 +23,6 @@
    <string name="prev_window">Anterior</string>
    <string name="next_window">Seguinte</string>
    <string name="reset">Repor terminal</string>
-   <string name="send_email">Enviar mensagem para</string>
    <string name="special_keys">Teclas especiais</string>
    <string name="toggle_soft_keyboard">Mostrar/ocultar teclado</string>
 

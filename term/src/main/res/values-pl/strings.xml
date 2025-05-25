@@ -23,7 +23,6 @@
    <string name="prev_window">Poprzednie okno</string>
    <string name="next_window">Następne okno</string>
    <string name="reset">Wyczyść terminal</string>
-   <string name="send_email">Wyślij e-mail</string>
    <string name="special_keys">Przyciski specjalne</string>
    <string name="toggle_soft_keyboard">Pokaż klawiaturę</string>
 
@@ -140,10 +139,6 @@
   <string name="permdesc_append_to_path">Pozwól aplikacjom na dodawanie dodatkowych komend (odawanie katalogów do PATH) w Terminal Emulator for Android.</string>
   <string name="perm_prepend_to_path">Nadpisuj komendy Terminal Emulator</string>
   <string name="permdesc_prepend_to_path">Pozwól aplikacjom na nadpisywanie istniejących komend ich własnymi wersjami (dodawanie katalogów na początku PATH) w Terminal Emulator for Android.</string>
-
-  <string name="email_transcript_subject">Transkrypt z Terminal Emulator for Android</string>
-  <string name="email_transcript_chooser_title">Wyślij transkrypt używając:</string>
-  <string name="email_transcript_no_email_activity_found">Nie można wybrać aktywności e-mail żeby wysłać transkrypt.</string>
 
   <string name="alt_sends_esc">Przycisk Alt wysyła ESC</string>
   <string name="alt_sends_esc_summary_on">Przycisk Alt wysyła ESC.</string>

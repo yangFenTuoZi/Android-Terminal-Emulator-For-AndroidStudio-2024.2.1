@@ -23,7 +23,6 @@
    <string name="prev_window">Aurreko leihoa</string>
    <string name="next_window">Hurrengo leihoa</string>
    <string name="reset">Berrezarri terminala</string>
-   <string name="send_email">Bidali eposta ...(r)i</string>
    <string name="special_keys">Tekla bereziak</string>
    <string name="toggle_soft_keyboard">Txandakatu soft teklatua</string>
 

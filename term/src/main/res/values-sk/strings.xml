@@ -23,7 +23,6 @@
   <string name="prev_window">Dalšie okno</string>
   <string name="next_window">Predchádzajúce okno</string>
   <string name="reset">Obnoviť terminál</string>
-  <string name="send_email">Poslať e-mailom</string>
   <string name="special_keys">Špeciálne klávesy</string>
   <string name="toggle_soft_keyboard">Prepnúť softvérovú klávesnicu</string>
   
@@ -143,10 +142,6 @@
   <string name="permdesc_append_to_path">Umožňuje aplikáciám poskytnúť ďalšie príkazy (pridať priečinky do PATH) v Emulátori terminálu pre Android.</string>
   <string name="perm_prepend_to_path">Prepísať príkazy v Emulátori terminálu Android</string>
   <string name="permdesc_prepend_to_path">Umožňuje aplikáciám prepísať existujúce príkazy so svojimi vlastnými verziami (podradiť priečinky v PATH) v Emulátori terminálu pre Android.</string>
-  
-  <string name="email_transcript_subject">Prepis z Emulátora terminálu pre Android</string>
-  <string name="email_transcript_chooser_title">Poslať prepis prostredníctvom</string>
-  <string name="email_transcript_no_email_activity_found">Nie je možné vybrať e-mailovú aktivitu na poslanie prepisu.</string>
 
   <string name="alt_sends_esc">Posielať ESC pomocou klávesu Alt</string>
   <string name="alt_sends_esc_summary_on">Kláves Alt posiela ESC.</string>
@@ -159,8 +154,7 @@
   <string name="use_keyboard_shortcuts_summary_on">Ctrl-Tab: prepnúť okno, Ctrl-Shift-N: nové okno, Ctrl-Shift-V: prilepiť.</string>
   <string name="use_keyboard_shortcuts_summary_off">Klávesové skratky sú zakázané.</string>
   
-  <string name="help">Pomocník</string>
-    <string name="activity_term_here_title">Otvoriť terminál</string>
+  <string name="activity_term_here_title">Otvoriť terminál</string>
   
   <string name="activity_shortcut_create">Skratka terminálu</string>
   <string name="fsnavigator_title">VYBERTE SÚBOR</string>

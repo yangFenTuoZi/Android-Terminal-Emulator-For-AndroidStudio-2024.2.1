@@ -23,7 +23,6 @@
    <string name="prev_window">前一窗口</string>
    <string name="next_window">后一窗口</string>
    <string name="reset">重置终端</string>
-   <string name="send_email">发送电子邮件到...</string>
    <string name="special_keys">特殊键</string>
    <string name="toggle_soft_keyboard">打开/关闭软键盘</string>
 
@@ -143,10 +142,6 @@
    <string name="permdesc_append_to_path">允许程序添加额外命令</string>
    <string name="perm_prepend_to_path">覆盖终端模拟器中已有命令</string>
    <string name="permdesc_prepend_to_path">允许程序覆盖终端模拟器中已有命令</string>
-
-   <string name="email_transcript_subject">终端模拟器副本</string>
-   <string name="email_transcript_chooser_title">发送副本的邮件实例：</string>
-   <string name="email_transcript_no_email_activity_found">找不到邮件实例发送副本</string>
 
    <string name="alt_sends_esc">Alt 键发送 ESC</string>
    <string name="alt_sends_esc_summary_on">开启 Alt 键发送 ESC</string>

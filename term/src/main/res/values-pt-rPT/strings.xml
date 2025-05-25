@@ -18,7 +18,6 @@
    <string name="application_terminal">Terminal Emulator</string>
    <string name="preferences">Preferências</string>
    <string name="reset">Reset terminal</string>
-   <string name="send_email">Email para</string>
    <string name="special_keys">Teclas especiais</string>
    <string name="toggle_soft_keyboard">Abrir teclado</string>
 

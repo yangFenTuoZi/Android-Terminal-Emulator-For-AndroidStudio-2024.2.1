@@ -23,7 +23,6 @@
    <string name="prev_window">Vorig venster</string>
    <string name="next_window">Volgend venster</string>
    <string name="reset">Herstellen</string>
-   <string name="send_email">E-mail sturen naar</string>
    <string name="special_keys">Speciale knoppen</string>
    <string name="toggle_soft_keyboard">Toetsenbord aan/uit</string>
 
@@ -130,10 +129,6 @@
   <string name="control_key_dialog_fn_disabled_text">Geen functieknop ingesteld</string>
 
   <string name="confirm_window_close_message">Dit venster sluiten?</string>
-
-  <string name="email_transcript_subject">Gegevens uit Terminal Emulator for Android</string>
-  <string name="email_transcript_chooser_title">Gegevens e-mailen via:</string>
-  <string name="email_transcript_no_email_activity_found">Kon geen e-mail activity kiezen om gegevens te sturen</string>
 
   <string name="alt_sends_esc">Alt-knop stuurt ESC</string>
   <string name="alt_sends_esc_summary_on">Alt-knop stuurt ESC</string>

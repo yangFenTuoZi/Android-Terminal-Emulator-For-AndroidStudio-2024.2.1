@@ -23,7 +23,6 @@
    <string name="prev_window">Fin. successiva</string>
    <string name="next_window">Fin. precedente</string>
    <string name="reset">Reset terminale</string>
-   <string name="send_email">Invia email</string>
    <string name="special_keys">Tasti speciali</string>
    <string name="toggle_soft_keyboard">Mostra/nascondi tastiera</string>
 
@@ -147,10 +146,6 @@
   <string name="permdesc_append_to_path">Permette all\'applicazione di fornire comandi aggiuntivi (aggiungi cartelle a PATH) per l\'Emulatore terminale.</string>
   <string name="perm_prepend_to_path">Sovrascrivi comandi nell\'Emulatore terminale</string>
   <string name="permdesc_prepend_to_path">Permette all\'applicazione di sovrascrivere comandi esistenti con le proprie versioni (anteponi cartelle a PATH) nell\'Emulatore terminale.</string>
-
-  <string name="email_transcript_subject">Trascrivi dall\'Emulatore terminale</string>
-  <string name="email_transcript_chooser_title">Trascrizione email usando:</string>
-  <string name="email_transcript_no_email_activity_found">Impossibile scegliere un\'attività email da inviare in trascrizione.</string>
 
   <string name="alt_sends_esc">Tasto Alt invia ESC</string>
   <string name="alt_sends_esc_summary_on">Il tasto Alt invia ESC.</string>

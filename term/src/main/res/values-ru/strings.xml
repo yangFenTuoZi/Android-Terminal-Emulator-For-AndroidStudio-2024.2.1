@@ -66,16 +66,12 @@
   <string name="disable_wakelock">Выключить WakeLock</string>
   <string name="disable_wifilock">Выключить WifiLock</string>
   <string name="edit_text">Изменить</string>
-  <string name="email_transcript_chooser_title">Отправить текст из терминала с помощью:</string>
-  <string name="email_transcript_no_email_activity_found">Не найдено приложения для отправки текста</string>
-  <string name="email_transcript_subject">Вывод терминала Android</string>
   <string name="enable_wakelock">Включить WakeLock</string>
   <string name="enable_wifilock">Включить WifiLock</string>
   <string name="fsnavigator_change_theme">Изменить тему</string>
   <string name="fsnavigator_no_external_storage">Внешние хранилища недоступно</string>
   <string name="fsnavigator_optional_enter_path">Или введите путь здесь</string>
   <string name="fsnavigator_title">ВЫБОР ФАЙЛОВ</string>
-  <string name="help">Помощь</string>
   <string name="keyboard_preferences">Клавиатура</string>
   <string name="new_window">Новое окно</string>
   <string name="next_window">Следующее окно</string>
@@ -94,7 +90,6 @@
   <string name="screen_preferences">Экран</string>
   <string name="select_text">Выбрать текст</string>
   <string name="send_control_key">Передать кнопку Control</string>
-  <string name="send_email">Отправить по эл.почте</string>
   <string name="send_fn_key">Передать кнопку Fn</string>
   <string name="service_notify_text">Запущен терминальный сеанс</string>
   <string name="shell_preferences">Командная оболочка</string>
