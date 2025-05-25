@@ -27,18 +27,12 @@ import android.widget.TextView
 import jackpal.androidterm.emulatorview.UpdateCallback
 import jackpal.androidterm.util.SessionList
 
-open class WindowListAdapter(sessions: SessionList?) : BaseAdapter(), UpdateCallback {
-    private var mSessions: SessionList? = null
+open class WindowListAdapter(val mSessions: SessionList?) : BaseAdapter(), UpdateCallback {
 
     init {
-        setSessions(sessions)
-    }
-
-    fun setSessions(sessions: SessionList?) {
-        mSessions = sessions
-        if (sessions != null) {
-            sessions.addCallback(this)
-            sessions.addTitleChangedListener(this)
+        if (mSessions != null) {
+            mSessions.addCallback(this)
+            mSessions.addTitleChangedListener(this)
         } else {
             onUpdate()
         }
@@ -67,18 +61,17 @@ open class WindowListAdapter(sessions: SessionList?) : BaseAdapter(), UpdateCall
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
         val child = LayoutInflater.from(parent.context).inflate(R.layout.window_list_item, parent, false)
-        val close = child?.findViewById<View>(R.id.window_list_close)
-        val label = child?.findViewById<TextView>(R.id.window_list_label)
-        val defaultTitle = parent.context.getString(R.string.window_title, position + 1)
-        label?.text = getSessionTitle(position, defaultTitle)
         val sessions = mSessions
         val closePosition = position
-        close?.setOnClickListener {
+        child?.findViewById<View>(R.id.window_list_close)?.setOnClickListener {
             val session = sessions?.removeAt(closePosition)
             if (session != null) {
                 session.finish()
                 notifyDataSetChanged()
             }
+        }
+        child?.findViewById<TextView>(R.id.window_list_label)?.apply {
+            text = getSessionTitle(position, parent.context.getString(R.string.window_title, position + 1))
         }
         return child!!
     }

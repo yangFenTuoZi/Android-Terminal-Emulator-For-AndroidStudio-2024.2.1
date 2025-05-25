@@ -54,12 +54,12 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.net.toUri
 import androidx.core.view.get
 import androidx.core.view.size
 import androidx.preference.PreferenceManager
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import jackpal.androidterm.TermService.TSBinder
 import jackpal.androidterm.emulatorview.EmulatorView
@@ -632,7 +632,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             .show()
     }
 
-    class CloseButton : AppCompatImageView {
+    class CloseButton : MaterialButton {
         constructor(context: Context) : super(context)
         constructor(context: Context, attrs: AttributeSet) : super(context, attrs)
         constructor(context: Context, attrs: AttributeSet, style: Int) : super(context, attrs, style)

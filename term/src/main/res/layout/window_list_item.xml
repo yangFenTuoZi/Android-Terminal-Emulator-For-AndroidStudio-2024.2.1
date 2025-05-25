@@ -17,29 +17,40 @@
 -->
 
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="horizontal">
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="15dp"
+    android:paddingEnd="15dp">
 
+    <com.google.android.material.radiobutton.MaterialRadioButton
+        android:id="@+id/radio_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:clickable="false"
+        android:focusable="false" />
 
     <TextView
         android:id="@+id/window_list_label"
         android:layout_width="0dp"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:layout_weight="1"
         android:maxLines="1"
-        android:padding="15dp"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:singleLine="true" />
+        android:singleLine="true"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <view
         android:id="@+id/window_list_close"
+        style="?attr/materialIconButtonStyle"
         class="jackpal.androidterm.Term$CloseButton"
         android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:background="@drawable/close_background"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
+        android:layout_height="wrap_content"
+        android:clickable="true"
+        android:contentDescription="@string/close_window"
+        android:focusable="false"
         android:scaleType="center"
-        android:src="@drawable/btn_close_window" />
+        app:icon="@drawable/btn_close_window"
+        app:iconSize="24dp" />
 </LinearLayout>
