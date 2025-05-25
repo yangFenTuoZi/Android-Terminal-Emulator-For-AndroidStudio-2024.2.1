@@ -66,7 +66,6 @@ import jackpal.androidterm.emulatorview.EmulatorView
 import jackpal.androidterm.emulatorview.TermSession
 import jackpal.androidterm.emulatorview.UpdateCallback
 import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat
-import jackpal.androidterm.emulatorview.compat.KeycodeConstants
 import jackpal.androidterm.util.SessionList
 import jackpal.androidterm.util.TermSettings
 import java.io.IOException
@@ -205,10 +204,10 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             if (!mUseKeyboardShortcuts) {
                 return false
             }
-            val isCtrlPressed = (event.metaState and KeycodeConstants.META_CTRL_ON) != 0
-            val isShiftPressed = (event.metaState and KeycodeConstants.META_SHIFT_ON) != 0
+            val isCtrlPressed = (event.metaState and KeyEvent.META_CTRL_ON) != 0
+            val isShiftPressed = (event.metaState and KeyEvent.META_SHIFT_ON) != 0
 
-            if (keyCode == KeycodeConstants.KEYCODE_TAB && isCtrlPressed) {
+            if (keyCode == KeyEvent.KEYCODE_TAB && isCtrlPressed) {
                 if (isShiftPressed) {
                     mViewFlipper?.showPrevious()
                 } else {
@@ -216,11 +215,11 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
                 }
 
                 return true
-            } else if (keyCode == KeycodeConstants.KEYCODE_N && isCtrlPressed && isShiftPressed) {
+            } else if (keyCode == KeyEvent.KEYCODE_N && isCtrlPressed && isShiftPressed) {
                 doCreateNewWindow()
 
                 return true
-            } else if (keyCode == KeycodeConstants.KEYCODE_V && isCtrlPressed && isShiftPressed) {
+            } else if (keyCode == KeyEvent.KEYCODE_V && isCtrlPressed && isShiftPressed) {
                 doPaste()
 
                 return true
