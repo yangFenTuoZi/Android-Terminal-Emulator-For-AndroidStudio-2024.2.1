@@ -936,7 +936,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             intent.putExtra(Intent.EXTRA_SUBJECT, subject)
             intent.putExtra(
                 Intent.EXTRA_TEXT,
-                session.transcriptText.trim { it <= ' ' })
+                session.transcriptText?.trim { it <= ' ' })
             try {
                 startActivity(
                     Intent.createChooser(
@@ -956,7 +956,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
     private fun doCopyAll() {
         val clip = ClipboardManagerCompat(applicationContext)
-        this.currentTermSession?.transcriptText?.let { clip.setText(it.trim { it <= ' ' }) }
+        this.currentTermSession?.transcriptText?.let { clip.text = it.trim { it <= ' ' } }
     }
 
     private fun doPaste() {
@@ -964,7 +964,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             return
         }
         val clip = ClipboardManagerCompat(applicationContext)
-        val paste = clip.getText()
+        val paste = clip.text
         this.currentTermSession?.write(paste.toString())
     }
 

@@ -13,15 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package jackpal.androidterm.emulatorview;
+package jackpal.androidterm.emulatorview
 
 /**
  * Generic callback to be invoked to notify of updates.
  */
-public interface UpdateCallback {
+fun interface UpdateCallback {
     /**
      * Callback function to be invoked when an update happens.
      */
-    void onUpdate();
+    fun onUpdate()
 }

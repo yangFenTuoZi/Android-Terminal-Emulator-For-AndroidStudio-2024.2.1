@@ -36,7 +36,6 @@ import android.util.Log
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.preference.PreferenceManager
-import jackpal.androidterm.compat.ServiceForegroundCompat
 import jackpal.androidterm.emulatorview.TermSession
 import jackpal.androidterm.libtermexec.v1.ITerminal
 import jackpal.androidterm.util.SessionList
@@ -44,7 +43,6 @@ import jackpal.androidterm.util.TermSettings
 import java.util.UUID
 
 class TermService : Service(), TermSession.FinishCallback {
-    private var compat: ServiceForegroundCompat? = null
     private var mTermSessions: SessionList = SessionList()
 
     inner class TSBinder : Binder() {
@@ -76,7 +74,6 @@ class TermService : Service(), TermSession.FinishCallback {
             putString("home_path", homePath)
         }
 
-        compat = ServiceForegroundCompat(this)
         mTermSessions = SessionList()
 
         val channelId = "term_service_channel"
@@ -98,12 +95,12 @@ class TermService : Service(), TermSession.FinishCallback {
             .setContentIntent(pendingIntent)
             .build()
 
-        compat?.startForeground(1, notification)
+        startForeground(1, notification)
         Log.d(TermDebug.LOG_TAG, "TermService started")
     }
 
     override fun onDestroy() {
-        compat?.stopForeground(true)
+        stopForeground(STOP_FOREGROUND_REMOVE)
         for (session in mTermSessions) {
             session.setFinishCallback(null)
             session.finish()
@@ -114,7 +111,7 @@ class TermService : Service(), TermSession.FinishCallback {
     val sessions: SessionList
         get() = mTermSessions
 
-    override fun onSessionFinish(session: TermSession) {
+    override fun onSessionFinish(session: TermSession?) {
         mTermSessions.remove(session)
     }
 
@@ -144,7 +141,7 @@ class TermService : Service(), TermSession.FinishCallback {
                                 mTermSessions.add(session)
                                 session.handle = sessionHandle
                                 session.setFinishCallback(RBinderCleanupCallback(result, callback))
-                                session.setTitle("")
+                                session.title = ""
                                 session.initializeEmulator(80, 24)
                             } catch (e: Exception) {
                                 Log.e("TermService", "Failed to bootstrap AIDL session: " + e.message)
@@ -161,7 +158,7 @@ class TermService : Service(), TermSession.FinishCallback {
     }
 
     private inner class RBinderCleanupCallback(private val result: PendingIntent, private val callback: ResultReceiver) : TermSession.FinishCallback {
-        override fun onSessionFinish(session: TermSession) {
+        override fun onSessionFinish(session: TermSession?) {
             result.cancel()
             callback.send(0, Bundle())
             mTermSessions.remove(session)

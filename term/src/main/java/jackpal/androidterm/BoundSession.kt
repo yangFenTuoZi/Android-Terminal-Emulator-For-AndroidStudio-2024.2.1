@@ -16,14 +16,18 @@ class BoundSession(
         termOut = ParcelFileDescriptor.AutoCloseOutputStream(ptmxFd)
     }
 
-    override fun getTitle(): String {
-        val extraTitle = super.getTitle()
-        return if (TextUtils.isEmpty(extraTitle)) {
-            issuerTitle
-        } else {
-            "$issuerTitle — $extraTitle"
+    override var title: String?
+        get() {
+            val extraTitle = super.title
+            return if (TextUtils.isEmpty(extraTitle)) {
+                issuerTitle
+            } else {
+                "$issuerTitle — $extraTitle"
+            }
         }
-    }
+        set(value) {
+            super.title = value
+        }
 
     override fun initializeEmulator(columns: Int, rows: Int) {
         super.initializeEmulator(columns, rows)

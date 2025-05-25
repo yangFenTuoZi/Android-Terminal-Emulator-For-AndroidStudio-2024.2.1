@@ -13,219 +13,212 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package jackpal.androidterm.emulatorview
 
-package jackpal.androidterm.emulatorview;
-
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.CodingErrorAction;
-import java.nio.charset.StandardCharsets;
-
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
+import java.io.UnsupportedEncodingException
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.CharsetEncoder
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
+import kotlin.math.min
 
 /**
  * A terminal session, consisting of a VT100 terminal emulator and its
  * input and output streams.
- * <p>
- * You need to supply an {@link InputStream} and {@link OutputStream} to
+ *
+ *
+ * You need to supply an [InputStream] and [OutputStream] to
  * provide input and output to the terminal.  For a locally running
  * program, these would typically point to a tty; for a telnet program
  * they might point to a network socket.  Reader and writer threads will be
  * spawned to do I/O to these streams.  All other operations, including
- * processing of input and output in {@link #processInput processInput} and
- * {@link #write(byte[], int, int) write}, will be performed on the main thread.
- * <p>
- * Call {@link #setTermIn} and {@link #setTermOut} to connect the input and
+ * processing of input and output in [processInput][.processInput] and
+ * [write][.write], will be performed on the main thread.
+ *
+ *
+ * Call [.setTermIn] and [.setTermOut] to connect the input and
  * output streams to the emulator.  When all of your initialization is
  * complete, your initial screen size is known, and you're ready to
- * start VT100 emulation, call {@link #initializeEmulator} or {@link
- * #updateSize} with the number of rows and columns the terminal should
- * initially have.  (If you attach the session to an {@link EmulatorView},
+ * start VT100 emulation, call [.initializeEmulator] or [ ][.updateSize] with the number of rows and columns the terminal should
+ * initially have.  (If you attach the session to an [EmulatorView],
  * the view will take care of setting the screen size and initializing the
  * emulator for you.)
- * <p>
- * When you're done with the session, you should call {@link #finish} on it.
+ *
+ *
+ * When you're done with the session, you should call [.finish] on it.
  * This frees emulator data from memory, stops the reader and writer threads,
  * and closes the attached I/O streams.
  */
-public class TermSession {
-    public void setKeyListener(TermKeyListener l) {
-        mKeyListener = l;
+open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
+    fun setKeyListener(l: TermKeyListener?) {
+        mKeyListener = l
     }
 
-    private TermKeyListener mKeyListener;
+    private var mKeyListener: TermKeyListener? = null
 
-    private ColorScheme mColorScheme = BaseTextRenderer.defaultColorScheme;
-    private UpdateCallback mNotify;
+    private var mColorScheme: ColorScheme? = BaseTextRenderer.defaultColorScheme
+    private var mNotify: UpdateCallback? = null
 
-    private OutputStream mTermOut;
-    private InputStream mTermIn;
+    private var mTermOut: OutputStream? = null
+    private var mTermIn: InputStream? = null
 
-    private String mTitle;
+    private var mTitle: String? = null
 
-    private TranscriptScreen mTranscriptScreen;
-    private TerminalEmulator mEmulator;
+    var transcriptScreen: TranscriptScreen? = null
+        private set
+    var emulator: TerminalEmulator? = null
+        private set
 
-    private boolean mDefaultUTF8Mode;
+    private var mDefaultUTF8Mode = false
 
-    private Thread mReaderThread;
-    private ByteQueue mByteQueue;
-    private byte[] mReceiveBuffer;
+    private val mReaderThread: Thread
+    private val mByteQueue: ByteQueue
+    private val mReceiveBuffer: ByteArray
 
-    private Thread mWriterThread;
-    private ByteQueue mWriteQueue;
-    private Handler mWriterHandler;
+    private val mWriterThread: Thread
+    private val mWriteQueue: ByteQueue
+    private var mWriterHandler: Handler? = null
 
-    private CharBuffer mWriteCharBuffer;
-    private ByteBuffer mWriteByteBuffer;
-    private CharsetEncoder mUTF8Encoder;
-
-    // Number of rows in the transcript
-    private static final int TRANSCRIPT_ROWS = 10000;
-
-    private static final int NEW_INPUT = 1;
-    private static final int NEW_OUTPUT = 2;
-    private static final int FINISH = 3;
-    private static final int EOF = 4;
+    private val mWriteCharBuffer: CharBuffer = CharBuffer.allocate(2)
+    private val mWriteByteBuffer: ByteBuffer = ByteBuffer.allocate(4)
+    private val mUTF8Encoder: CharsetEncoder = StandardCharsets.UTF_8.newEncoder()
 
     /**
-     * Callback to be invoked when a {@link TermSession} finishes.
+     * Callback to be invoked when a [TermSession] finishes.
      *
-     * @see TermSession#setUpdateCallback
+     * @see TermSession.setUpdateCallback
      */
-    public interface FinishCallback {
+    interface FinishCallback {
         /**
-         * Callback function to be invoked when a {@link TermSession} finishes.
+         * Callback function to be invoked when a [TermSession] finishes.
          *
-         * @param session The <code>TermSession</code> which has finished.
+         * @param session The `TermSession` which has finished.
          */
-        void onSessionFinish(TermSession session);
+        fun onSessionFinish(session: TermSession?)
     }
-    private FinishCallback mFinishCallback;
 
-    private boolean mIsRunning = false;
-    private Handler mMsgHandler = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-            if (!mIsRunning) {
-                return;
+    private var mFinishCallback: FinishCallback? = null
+
+    /**
+     * @return Whether the terminal emulation is currently running.
+     */
+    var isRunning: Boolean = false
+        private set
+    private val mMsgHandler: Handler = object : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            if (!isRunning) {
+                return
             }
             if (msg.what == NEW_INPUT) {
-                readFromProcess();
+                readFromProcess()
             } else if (msg.what == EOF) {
-                new Handler(Looper.getMainLooper()).post(() -> onProcessExit());
+                Handler(Looper.getMainLooper()).post { onProcessExit() }
             }
         }
-    };
-
-    private UpdateCallback mTitleChangedListener;
-
-    public TermSession() {
-        this(false);
     }
 
-    public TermSession(final boolean exitOnEOF) {
-        mWriteCharBuffer = CharBuffer.allocate(2);
-        mWriteByteBuffer = ByteBuffer.allocate(4);
-        mUTF8Encoder = StandardCharsets.UTF_8.newEncoder();
-        mUTF8Encoder.onMalformedInput(CodingErrorAction.REPLACE);
-        mUTF8Encoder.onUnmappableCharacter(CodingErrorAction.REPLACE);
+    private var mTitleChangedListener: UpdateCallback? = null
 
-        mReceiveBuffer = new byte[4 * 1024];
-        mByteQueue = new ByteQueue(4 * 1024);
-        mReaderThread = new Thread() {
-            private byte[] mBuffer = new byte[4096];
+    init {
+        mUTF8Encoder.onMalformedInput(CodingErrorAction.REPLACE)
+        mUTF8Encoder.onUnmappableCharacter(CodingErrorAction.REPLACE)
 
-            @Override
-            public void run() {
+        mReceiveBuffer = ByteArray(4 * 1024)
+        mByteQueue = ByteQueue(4 * 1024)
+        mReaderThread = object : Thread() {
+            private val mBuffer = ByteArray(4096)
+
+            override fun run() {
                 try {
-                    while(true) {
-                        int read = mTermIn.read(mBuffer);
+                    while (true) {
+                        var read = mTermIn!!.read(mBuffer)
                         if (read == -1) {
                             // EOF -- process exited
-                            break;
+                            break
                         }
-                        int offset = 0;
+                        var offset = 0
                         while (read > 0) {
-                            int written = mByteQueue.write(mBuffer,
-                                    offset, read);
-                            offset += written;
-                            read -= written;
+                            val written = mByteQueue.write(
+                                mBuffer,
+                                offset, read
+                            )
+                            offset += written
+                            read -= written
                             mMsgHandler.sendMessage(
-                                    mMsgHandler.obtainMessage(NEW_INPUT));
+                                mMsgHandler.obtainMessage(NEW_INPUT)
+                            )
                         }
                     }
-                } catch (IOException | InterruptedException ignored) {
+                } catch (_: IOException) {
+                } catch (_: InterruptedException) {
                 }
 
-                if (exitOnEOF) mMsgHandler.sendMessage(mMsgHandler.obtainMessage(EOF));
+                if (exitOnEOF) mMsgHandler.sendMessage(mMsgHandler.obtainMessage(EOF))
             }
-        };
-        mReaderThread.setName("TermSession input reader");
+        }
+        mReaderThread.setName("TermSession input reader")
 
-        mWriteQueue = new ByteQueue(4096);
-        mWriterThread = new Thread() {
-            private byte[] mBuffer = new byte[4096];
+        mWriteQueue = ByteQueue(4096)
+        mWriterThread = object : Thread() {
+            private val mBuffer = ByteArray(4096)
 
-            @Override
-            public void run() {
-                Looper.prepare();
+            override fun run() {
+                Looper.prepare()
 
-                mWriterHandler = new Handler() {
-                    @Override
-                    public void handleMessage(Message msg) {
+                mWriterHandler = object : Handler(Looper.getMainLooper()) {
+                    override fun handleMessage(msg: Message) {
                         if (msg.what == NEW_OUTPUT) {
-                            writeToOutput();
+                            writeToOutput()
                         } else if (msg.what == FINISH) {
-                            Looper.myLooper().quit();
+                            Looper.myLooper()!!.quit()
                         }
                     }
-                };
+                }
 
                 // Drain anything in the queue from before we started
-                writeToOutput();
+                writeToOutput()
 
-                Looper.loop();
+                Looper.loop()
             }
 
-            private void writeToOutput() {
-                ByteQueue writeQueue = mWriteQueue;
-                byte[] buffer = mBuffer;
-                OutputStream termOut = mTermOut;
+            private fun writeToOutput() {
+                val writeQueue = mWriteQueue
+                val buffer = mBuffer
+                val termOut: OutputStream = mTermOut!!
 
-                int bytesAvailable = writeQueue.getBytesAvailable();
-                int bytesToWrite = Math.min(bytesAvailable, buffer.length);
+                val bytesAvailable = writeQueue.bytesAvailable
+                val bytesToWrite = min(bytesAvailable.toDouble(), buffer.size.toDouble()).toInt()
 
                 if (bytesToWrite == 0) {
-                    return;
+                    return
                 }
 
                 try {
-                    writeQueue.read(buffer, 0, bytesToWrite);
-                    termOut.write(buffer, 0, bytesToWrite);
-                    termOut.flush();
-                } catch (IOException e) {
+                    writeQueue.read(buffer, 0, bytesToWrite)
+                    termOut.write(buffer, 0, bytesToWrite)
+                    termOut.flush()
+                } catch (e: IOException) {
                     // Ignore exception
                     // We don't really care if the receiver isn't listening.
                     // We just make a best effort to answer the query.
-                    e.printStackTrace();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    e.printStackTrace()
+                } catch (e: InterruptedException) {
+                    e.printStackTrace()
                 }
             }
-        };
-        mWriterThread.setName("TermSession output writer");
+        }
+        mWriterThread.setName("TermSession output writer")
     }
 
-    protected void onProcessExit() {
-        finish();
+    protected open fun onProcessExit() {
+        finish()
     }
 
     /**
@@ -234,25 +227,28 @@ public class TermSession {
      * @param columns The number of columns in the terminal window.
      * @param rows The number of rows in the terminal window.
      */
-    public void initializeEmulator(int columns, int rows) {
-        mTranscriptScreen = new TranscriptScreen(columns, TRANSCRIPT_ROWS, rows, mColorScheme);
-        mEmulator = new TerminalEmulator(this, mTranscriptScreen, columns, rows, mColorScheme);
-        mEmulator.setDefaultUTF8Mode(mDefaultUTF8Mode);
-        mEmulator.setKeyListener(mKeyListener);
+    open fun initializeEmulator(columns: Int, rows: Int) {
+        this.transcriptScreen = TranscriptScreen(columns, TRANSCRIPT_ROWS, rows, mColorScheme)
+        this.emulator =
+            this.transcriptScreen?.let { TerminalEmulator(this, it, columns, rows, mColorScheme) }
+        emulator?.setDefaultUTF8Mode(mDefaultUTF8Mode)
+        mKeyListener?.let { emulator?.setKeyListener(it) }
 
-        mIsRunning = true;
-        mReaderThread.start();
-        mWriterThread.start();
+        this.isRunning = true
+        mReaderThread.start()
+        mWriterThread.start()
     }
 
     /**
      * Write data to the terminal output.  The written data will be consumed by
      * the emulation client as input.
-     * <p>
-     * <code>write</code> itself runs on the main thread.  The default
+     *
+     *
+     * `write` itself runs on the main thread.  The default
      * implementation writes the data into a circular buffer and signals the
-     * writer thread to copy it from there to the {@link OutputStream}.
-     * <p>
+     * writer thread to copy it from there to the [OutputStream].
+     *
+     *
      * Subclasses may override this method to modify the output before writing
      * it to the stream, but implementations in derived classes should call
      * through to this method to do the actual writing.
@@ -261,34 +257,37 @@ public class TermSession {
      * @param offset The offset into the array at which the data starts.
      * @param count The number of bytes to be written.
      */
-    public void write(byte[] data, int offset, int count) {
+    fun write(data: ByteArray, offset: Int, count: Int) {
+        var offset = offset
+        var count = count
         try {
             while (count > 0) {
-                int written = mWriteQueue.write(data, offset, count);
-                offset += written;
-                count -= written;
-                notifyNewOutput();
+                val written = mWriteQueue.write(data, offset, count)
+                offset += written
+                count -= written
+                notifyNewOutput()
             }
-        } catch (InterruptedException ignored) {
+        } catch (_: InterruptedException) {
         }
     }
 
     /**
      * Write the UTF-8 representation of a String to the terminal output.  The
      * written data will be consumed by the emulation client as input.
-     * <p>
+     *
+     *
      * This implementation encodes the String and then calls
-     * {@link #write(byte[], int, int)} to do the actual writing.  It should
+     * [.write] to do the actual writing.  It should
      * therefore usually be unnecessary to override this method; override
-     * {@link #write(byte[], int, int)} instead.
+     * [.write] instead.
      *
      * @param data The String to write to the terminal.
      */
-    public void write(String data) {
+    fun write(data: String) {
         try {
-            byte[] bytes = data.getBytes("UTF-8");
-            write(bytes, 0, bytes.length);
-        } catch (UnsupportedEncodingException ignored) {
+            val bytes = data.toByteArray(charset("UTF-8"))
+            write(bytes, 0, bytes.size)
+        } catch (_: UnsupportedEncodingException) {
         }
     }
 
@@ -296,207 +295,185 @@ public class TermSession {
      * Write the UTF-8 representation of a single Unicode code point to the
      * terminal output.  The written data will be consumed by the emulation
      * client as input.
-     * <p>
+     *
+     *
      * This implementation encodes the code point and then calls
-     * {@link #write(byte[], int, int)} to do the actual writing.  It should
+     * [.write] to do the actual writing.  It should
      * therefore usually be unnecessary to override this method; override
-     * {@link #write(byte[], int, int)} instead.
+     * [.write] instead.
      *
      * @param codePoint The Unicode code point to write to the terminal.
      */
-    public void write(int codePoint) {
-        ByteBuffer byteBuf = mWriteByteBuffer;
+    fun write(codePoint: Int) {
+        val byteBuf = mWriteByteBuffer
         if (codePoint < 128) {
             // Fast path for ASCII characters
-            byte[] buf = byteBuf.array();
-            buf[0] = (byte) codePoint;
-            write(buf, 0, 1);
-            return;
+            val buf = byteBuf.array()
+            buf[0] = codePoint.toByte()
+            write(buf, 0, 1)
+            return
         }
 
-        CharBuffer charBuf = mWriteCharBuffer;
-        CharsetEncoder encoder = mUTF8Encoder;
+        val charBuf = mWriteCharBuffer
+        val encoder = mUTF8Encoder
 
-        charBuf.clear();
-        byteBuf.clear();
-        Character.toChars(codePoint, charBuf.array(), 0);
-        encoder.reset();
-        encoder.encode(charBuf, byteBuf, true);
-        encoder.flush(byteBuf);
-        write(byteBuf.array(), 0, byteBuf.position()-1);
+        charBuf.clear()
+        byteBuf.clear()
+        Character.toChars(codePoint, charBuf.array(), 0)
+        encoder.reset()
+        encoder.encode(charBuf, byteBuf, true)
+        encoder.flush(byteBuf)
+        write(byteBuf.array(), 0, byteBuf.position() - 1)
     }
 
     /* Notify the writer thread that there's new output waiting */
-    private void notifyNewOutput() {
-        Handler writerHandler = mWriterHandler;
+    private fun notifyNewOutput() {
+        val writerHandler = mWriterHandler
         if (writerHandler == null) {
-           /* Writer thread isn't started -- will pick up data once it does */
-           return;
+            /* Writer thread isn't started -- will pick up data once it does */
+            return
         }
-        writerHandler.sendEmptyMessage(NEW_OUTPUT);
+        writerHandler.sendEmptyMessage(NEW_OUTPUT)
     }
+
+    var termOut: OutputStream?
+        /**
+         * Get the [OutputStream] associated with this session.
+         *
+         * @return This session's [OutputStream].
+         */
+        get() = mTermOut
+        /**
+         * Set the [OutputStream] associated with this session.
+         *
+         * @param termOut This session's [OutputStream].
+         */
+        set(termOut) {
+            mTermOut = termOut
+        }
+
+    var termIn: InputStream?
+        /**
+         * Get the [InputStream] associated with this session.
+         *
+         * @return This session's [InputStream].
+         */
+        get() = mTermIn
+        /**
+         * Set the [InputStream] associated with this session.
+         *
+         * @param termIn This session's [InputStream].
+         */
+        set(termIn) {
+            mTermIn = termIn
+        }
 
     /**
-     * Get the {@link OutputStream} associated with this session.
-     *
-     * @return This session's {@link OutputStream}.
-     */
-    public OutputStream getTermOut() {
-        return mTermOut;
-    }
-
-    /**
-     * Set the {@link OutputStream} associated with this session.
-     *
-     * @param termOut This session's {@link OutputStream}.
-     */
-    public void setTermOut(OutputStream termOut) {
-        mTermOut = termOut;
-    }
-
-    /**
-     * Get the {@link InputStream} associated with this session.
-     *
-     * @return This session's {@link InputStream}.
-     */
-    public InputStream getTermIn() {
-        return mTermIn;
-    }
-
-    /**
-     * Set the {@link InputStream} associated with this session.
-     *
-     * @param termIn This session's {@link InputStream}.
-     */
-    public void setTermIn(InputStream termIn) {
-        mTermIn = termIn;
-    }
-
-    /**
-     * @return Whether the terminal emulation is currently running.
-     */
-    public boolean isRunning() {
-        return mIsRunning;
-    }
-
-    TranscriptScreen getTranscriptScreen() {
-        return mTranscriptScreen;
-    }
-
-    TerminalEmulator getEmulator() {
-        return mEmulator;
-    }
-
-    /**
-     * Set an {@link UpdateCallback} to be invoked when the terminal emulator's
+     * Set an [UpdateCallback] to be invoked when the terminal emulator's
      * screen is changed.
      *
-     * @param notify The {@link UpdateCallback} to be invoked on changes.
+     * @param notify The [UpdateCallback] to be invoked on changes.
      */
-    public void setUpdateCallback(UpdateCallback notify) {
-        mNotify = notify;
+    fun setUpdateCallback(notify: UpdateCallback?) {
+        mNotify = notify
     }
 
     /**
-     * Notify the {@link UpdateCallback} registered by {@link
-     * #setUpdateCallback setUpdateCallback} that the screen has changed.
+     * Notify the [UpdateCallback] registered by [ ][.setUpdateCallback] that the screen has changed.
      */
-    protected void notifyUpdate() {
+    protected fun notifyUpdate() {
         if (mNotify != null) {
-            mNotify.onUpdate();
+            mNotify!!.onUpdate()
         }
     }
 
-    /**
-     * Get the terminal session's title (may be null).
-     */
-    public String getTitle() {
-        return mTitle;
-    }
+    open var title: String?
+        /**
+         * Get the terminal session's title (may be null).
+         */
+        get() = mTitle
+        /**
+         * Change the terminal session's title.
+         */
+        set(title) {
+            mTitle = title
+            notifyTitleChanged()
+        }
 
     /**
-     * Change the terminal session's title.
-     */
-    public void setTitle(String title) {
-        mTitle = title;
-        notifyTitleChanged();
-    }
-
-    /**
-     * Set an {@link UpdateCallback} to be invoked when the terminal emulator's
+     * Set an [UpdateCallback] to be invoked when the terminal emulator's
      * title is changed.
      *
-     * @param listener The {@link UpdateCallback} to be invoked on changes.
+     * @param listener The [UpdateCallback] to be invoked on changes.
      */
-    public void setTitleChangedListener(UpdateCallback listener) {
-        mTitleChangedListener = listener;
+    fun setTitleChangedListener(listener: UpdateCallback?) {
+        mTitleChangedListener = listener
     }
 
     /**
      * Notify the UpdateCallback registered for title changes, if any, that the
      * terminal session's title has changed.
      */
-    protected void notifyTitleChanged() {
-        UpdateCallback listener = mTitleChangedListener;
-        if (listener != null) {
-            listener.onUpdate();
-        }
+    protected fun notifyTitleChanged() {
+        val listener = mTitleChangedListener
+        listener?.onUpdate()
     }
 
     /**
-     * Change the terminal's window size.  Will call {@link #initializeEmulator}
+     * Change the terminal's window size.  Will call [.initializeEmulator]
      * if the emulator is not yet running.
-     * <p>
+     *
+     *
      * You should override this method if your application needs to be notified
      * when the screen size changes (for example, if you need to issue
-     * <code>TIOCSWINSZ</code> to a tty to adjust the window size).  <em>If you
+     * `TIOCSWINSZ` to a tty to adjust the window size).  *If you
      * do override this method, you must call through to the superclass
-     * implementation.</em>
+     * implementation.*
      *
      * @param columns The number of columns in the terminal window.
      * @param rows The number of rows in the terminal window.
      */
-    public void updateSize(int columns, int rows) {
-        if (mEmulator == null) {
-            initializeEmulator(columns, rows);
+    open fun updateSize(columns: Int, rows: Int) {
+        if (this.emulator == null) {
+            initializeEmulator(columns, rows)
         } else {
-            mEmulator.updateSize(columns, rows);
+            emulator!!.updateSize(columns, rows)
         }
     }
 
-    /**
-     * Retrieve the terminal's screen and scrollback buffer.
-     *
-     * @return A {@link String} containing the contents of the screen and
-     *         scrollback buffer.
-     */
-    public String getTranscriptText() {
-        return mTranscriptScreen.getTranscriptText();
-    }
+    val transcriptText: String?
+        /**
+         * Retrieve the terminal's screen and scrollback buffer.
+         *
+         * @return A [String] containing the contents of the screen and
+         * scrollback buffer.
+         */
+        get() = transcriptScreen!!.transcriptText
 
     /**
      * Look for new input from the ptty, send it to the terminal emulator.
      */
-    private void readFromProcess() {
-        int bytesAvailable = mByteQueue.getBytesAvailable();
-        int bytesToRead = Math.min(bytesAvailable, mReceiveBuffer.length);
-        int bytesRead;
+    private fun readFromProcess() {
+        val bytesAvailable = mByteQueue.bytesAvailable
+        val bytesToRead = min(bytesAvailable.toDouble(), mReceiveBuffer.size.toDouble()).toInt()
+        val bytesRead: Int
         try {
-            bytesRead = mByteQueue.read(mReceiveBuffer, 0, bytesToRead);
-        } catch (InterruptedException e) {
-            return;
+            bytesRead = mByteQueue.read(mReceiveBuffer, 0, bytesToRead)
+        } catch (_: InterruptedException) {
+            return
         }
 
         // Give subclasses a chance to process the read data
-        processInput(mReceiveBuffer, 0, bytesRead);
-        notifyUpdate();
+        processInput(mReceiveBuffer, 0, bytesRead)
+        notifyUpdate()
     }
 
     /**
      * Process input and send it to the terminal emulator.  This method is
      * invoked on the main thread whenever new data is read from the
      * InputStream.
-     * <p>
+     *
+     *
      * The default implementation sends the data straight to the terminal
      * emulator without modifying it in any way.  Subclasses can override it to
      * modify the data before giving it to the terminal.
@@ -505,128 +482,139 @@ public class TermSession {
      * @param offset The offset into the buffer where the read data begins.
      * @param count The number of bytes read.
      */
-    protected void processInput(byte[] data, int offset, int count) {
-        mEmulator.append(data, offset, count);
+    protected fun processInput(data: ByteArray, offset: Int, count: Int) {
+        emulator!!.append(data, offset, count)
     }
 
     /**
      * Write something directly to the terminal emulator input, bypassing the
-     * emulation client, the session's {@link InputStream}, and any processing
-     * being done by {@link #processInput processInput}.
+     * emulation client, the session's [InputStream], and any processing
+     * being done by [processInput][.processInput].
      *
      * @param data The data to be written to the terminal.
      * @param offset The starting offset into the buffer of the data.
      * @param count The length of the data to be written.
      */
-    protected final void appendToEmulator(byte[] data, int offset, int count) {
-        mEmulator.append(data, offset, count);
+    protected fun appendToEmulator(data: ByteArray, offset: Int, count: Int) {
+        emulator!!.append(data, offset, count)
     }
 
     /**
      * Set the terminal emulator's color scheme (default colors).
      *
-     * @param scheme The {@link ColorScheme} to be used (use null for the
-     *               default scheme).
+     * @param scheme The [ColorScheme] to be used (use null for the
+     * default scheme).
      */
-    public void setColorScheme(ColorScheme scheme) {
+    fun setColorScheme(scheme: ColorScheme?) {
+        var scheme = scheme
         if (scheme == null) {
-            scheme = BaseTextRenderer.defaultColorScheme;
+            scheme = BaseTextRenderer.defaultColorScheme
         }
-        mColorScheme = scheme;
-        if (mEmulator == null) {
-            return;
+        mColorScheme = scheme
+        if (this.emulator == null) {
+            return
         }
-        mEmulator.setColorScheme(scheme);
+        emulator!!.setColorScheme(scheme)
     }
 
     /**
      * Set whether the terminal emulator should be in UTF-8 mode by default.
-     * <p>
+     *
+     *
      * In UTF-8 mode, the terminal will handle UTF-8 sequences, allowing the
      * display of text in most of the world's languages, but applications must
      * encode C1 control characters and graphics drawing characters as the
      * corresponding UTF-8 sequences.
      *
      * @param utf8ByDefault Whether the terminal emulator should be in UTF-8
-     *                      mode by default.
+     * mode by default.
      */
-    public void setDefaultUTF8Mode(boolean utf8ByDefault) {
-        mDefaultUTF8Mode = utf8ByDefault;
-        if (mEmulator == null) {
-            return;
+    fun setDefaultUTF8Mode(utf8ByDefault: Boolean) {
+        mDefaultUTF8Mode = utf8ByDefault
+        if (this.emulator == null) {
+            return
         }
-        mEmulator.setDefaultUTF8Mode(utf8ByDefault);
+        emulator!!.setDefaultUTF8Mode(utf8ByDefault)
     }
 
-    /**
-     * Get whether the terminal emulator is currently in UTF-8 mode.
-     *
-     * @return Whether the emulator is currently in UTF-8 mode.
-     */
-    public boolean getUTF8Mode() {
-        if (mEmulator == null) {
-            return mDefaultUTF8Mode;
+    val uTF8Mode: Boolean
+        /**
+         * Get whether the terminal emulator is currently in UTF-8 mode.
+         *
+         * @return Whether the emulator is currently in UTF-8 mode.
+         */
+        get() = if (this.emulator == null) {
+            mDefaultUTF8Mode
         } else {
-            return mEmulator.getUTF8Mode();
+            emulator!!.uTF8Mode
         }
-    }
 
     /**
-     * Set an {@link UpdateCallback} to be invoked when the terminal emulator
+     * Set an [UpdateCallback] to be invoked when the terminal emulator
      * goes into or out of UTF-8 mode.
      *
-     * @param utf8ModeNotify The {@link UpdateCallback} to be invoked.
+     * @param utf8ModeNotify The [UpdateCallback] to be invoked.
      */
-    public void setUTF8ModeUpdateCallback(UpdateCallback utf8ModeNotify) {
-        if (mEmulator != null) {
-            mEmulator.setUTF8ModeUpdateCallback(utf8ModeNotify);
+    fun setUTF8ModeUpdateCallback(utf8ModeNotify: UpdateCallback?) {
+        if (this.emulator != null) {
+            emulator!!.setUTF8ModeUpdateCallback(utf8ModeNotify)
         }
     }
 
     /**
      * Reset the terminal emulator's state.
      */
-    public void reset() {
-        mEmulator.reset();
-        notifyUpdate();
+    fun reset() {
+        emulator!!.reset()
+        notifyUpdate()
     }
 
     /**
-     * Set a {@link FinishCallback} to be invoked once this terminal session is
+     * Set a [FinishCallback] to be invoked once this terminal session is
      * finished.
      *
-     * @param callback The {@link FinishCallback} to be invoked on finish.
+     * @param callback The [FinishCallback] to be invoked on finish.
      */
-    public void setFinishCallback(FinishCallback callback) {
-        mFinishCallback = callback;
+    fun setFinishCallback(callback: FinishCallback?) {
+        mFinishCallback = callback
     }
 
     /**
      * Finish this terminal session.  Frees resources used by the terminal
-     * emulator and closes the attached <code>InputStream</code> and
-     * <code>OutputStream</code>.
+     * emulator and closes the attached `InputStream` and
+     * `OutputStream`.
      */
-    public void finish() {
-        mIsRunning = false;
-        mEmulator.finish();
-        if (mTranscriptScreen != null) {
-            mTranscriptScreen.finish();
+    open fun finish() {
+        this.isRunning = false
+        emulator!!.finish()
+        if (this.transcriptScreen != null) {
+            transcriptScreen!!.finish()
         }
 
         // Stop the reader and writer threads, and close the I/O streams
         if (mWriterHandler != null) {
-            mWriterHandler.sendEmptyMessage(FINISH);
+            mWriterHandler!!.sendEmptyMessage(FINISH)
         }
         try {
-            mTermIn.close();
-            mTermOut.close();
-        } catch (IOException e) {
+            mTermIn!!.close()
+            mTermOut!!.close()
+        } catch (_: IOException) {
             // We don't care if this fails
-        } catch (NullPointerException ignored) {
+        } catch (_: NullPointerException) {
         }
 
         if (mFinishCallback != null) {
-            mFinishCallback.onSessionFinish(this);
+            mFinishCallback!!.onSessionFinish(this)
         }
+    }
+
+    companion object {
+        // Number of rows in the transcript
+        private const val TRANSCRIPT_ROWS = 10000
+
+        private const val NEW_INPUT = 1
+        private const val NEW_OUTPUT = 2
+        private const val FINISH = 3
+        private const val EOF = 4
     }
 }

@@ -13,21 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package jackpal.androidterm.emulatorview;
+package jackpal.androidterm.emulatorview
 
 /**
  * An abstract screen interface. A terminal screen stores lines of text. (The
  * reason to abstract it is to allow different implementations, and to hide
  * implementation details from clients.)
  */
-interface Screen {
-
+internal interface Screen {
     /**
      * Set line wrap flag for a given row. Affects how lines are logically
      * wrapped when changing screen size or converting to a transcript.
      */
-    void setLineWrap(int row);
+    fun setLineWrap(row: Int)
 
     /**
      * Store a Unicode code point into the screen at location (x, y)
@@ -37,7 +35,7 @@ interface Screen {
      * @param codePoint Unicode code point to store
      * @param style the text style
      */
-    void set(int x, int y, int codePoint, int style);
+    fun set(x: Int, y: Int, codePoint: Int, style: Int)
 
     /**
      * Store byte b into the screen at location (x, y)
@@ -47,7 +45,7 @@ interface Screen {
      * @param b ASCII character to store
      * @param style the text style
      */
-    void set(int x, int y, byte b, int style);
+    fun set(x: Int, y: Int, b: Byte, style: Int)
 
     /**
      * Scroll the screen down one line. To scroll the whole screen of a 24 line
@@ -57,7 +55,7 @@ interface Screen {
      * @param bottomMargin One line after the last line that is scrolled.
      * @param style the style for the newly exposed line.
      */
-    void scroll(int topMargin, int bottomMargin, int style);
+    fun scroll(topMargin: Int, bottomMargin: Int, style: Int)
 
     /**
      * Block copy characters from one position in the screen to another. The two
@@ -72,7 +70,7 @@ interface Screen {
      * @param dx destination X coordinate
      * @param dy destination Y coordinate
      */
-    void blockCopy(int sx, int sy, int w, int h, int dx, int dy);
+    fun blockCopy(sx: Int, sy: Int, w: Int, h: Int, dx: Int, dy: Int)
 
     /**
      * Block set characters. All characters must be within the bounds of the
@@ -87,14 +85,14 @@ interface Screen {
      * @param val value to set.
      * @param style the text style
      */
-    void blockSet(int sx, int sy, int w, int h, int val, int style);
+    fun blockSet(sx: Int, sy: Int, w: Int, h: Int, `val`: Int, style: Int)
 
     /**
      * Get the contents of the transcript buffer as a text string.
      *
      * @return the contents of the transcript buffer.
      */
-    String getTranscriptText();
+    val transcriptText: String?
 
     /**
      * Get the contents of the transcript buffer as a text string with color
@@ -103,7 +101,7 @@ interface Screen {
      * @param colors A GrowableIntArray which will hold the colors.
      * @return the contents of the transcript buffer.
      */
-    String getTranscriptText(GrowableIntArray colors);
+    fun getTranscriptText(colors: GrowableIntArray?): String?
 
     /**
      * Get the selected text inside transcript buffer as a text string.
@@ -113,7 +111,7 @@ interface Screen {
      * @param y2 Selection end
      * @return the contents of the transcript buffer.
      */
-    String getSelectedText(int x1, int y1, int x2, int y2);
+    fun getSelectedText(x1: Int, y1: Int, x2: Int, y2: Int): String?
 
     /**
      * Get the selected text inside transcript buffer as a text string with
@@ -126,13 +124,13 @@ interface Screen {
      * @param y2 Selection end
      * @return the contents of the transcript buffer.
      */
-    String getSelectedText(GrowableIntArray colors, int x1, int y1, int x2, int y2);
+    fun getSelectedText(colors: GrowableIntArray?, x1: Int, y1: Int, x2: Int, y2: Int): String?
 
     /**
      * Get the number of "active" (in-use) screen rows, including any rows in a
      * scrollback buffer.
      */
-    int getActiveRows();
+    val activeRows: Int
 
     /**
      * Try to resize the screen without losing its contents.
@@ -140,12 +138,12 @@ interface Screen {
      * @param columns
      * @param rows
      * @param cursor An int[2] containing the current cursor position
-     *               { col, row }.  If the resize succeeds, the array will be
-     *               updated to reflect the new location.
+     * { col, row }.  If the resize succeeds, the array will be
+     * updated to reflect the new location.
      * @return Whether the resize succeeded. If the operation fails, save the
-     *         contents of the screen and then use the standard resize.
+     * contents of the screen and then use the standard resize.
      */
-    boolean fastResize(int columns, int rows, int[] cursor);
+    fun fastResize(columns: Int, rows: Int, cursor: IntArray?): Boolean
 
     /**
      * Resize the screen
@@ -153,5 +151,5 @@ interface Screen {
      * @param rows
      * @param style
      */
-    void resize(int columns, int rows, int style);
+    fun resize(columns: Int, rows: Int, style: Int)
 }

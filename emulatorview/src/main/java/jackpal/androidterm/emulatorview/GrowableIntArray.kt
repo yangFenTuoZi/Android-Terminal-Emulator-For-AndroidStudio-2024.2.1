@@ -1,29 +1,31 @@
-package jackpal.androidterm.emulatorview;
+package jackpal.androidterm.emulatorview
 
-class GrowableIntArray {
-    GrowableIntArray(int initalCapacity) {
-        mData = new int[initalCapacity];
-        mLength = 0;
-    }
+import kotlin.math.max
 
-    void append(int i) {
-        if (mLength + 1 > mData.length) {
-            int newLength = Math.max((mData.length * 3) >> 1, 16);
-            int[] temp = new int[newLength];
-            System.arraycopy(mData, 0, temp, 0, mLength);
-            mData = temp;
+class GrowableIntArray(initalCapacity: Int) {
+    fun append(i: Int) {
+        if (mLength + 1 > mData.size) {
+            val newLength = max(((mData.size * 3) shr 1).toDouble(), 16.0).toInt()
+            val temp = IntArray(newLength)
+            System.arraycopy(mData, 0, temp, 0, mLength)
+            mData = temp
         }
-        mData[mLength++] = i;
+        mData[mLength++] = i
     }
 
-    int length() {
-        return mLength;
+    fun length(): Int {
+        return mLength
     }
 
-    int at(int index) {
-        return mData[index];
+    fun at(index: Int): Int {
+        return mData[index]
     }
 
-    int[] mData;
-    int mLength;
+    var mData: IntArray
+    var mLength: Int
+
+    init {
+        mData = IntArray(initalCapacity)
+        mLength = 0
+    }
 }

@@ -14,1697 +14,1299 @@
  * limitations under the License.
  */
 
-package jackpal.androidterm.emulatorview;
+package jackpal.androidterm.emulatorview
 
-import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.os.Build;
-import android.os.Bundle;
-import android.os.Handler;
-import android.text.SpannableStringBuilder;
-import android.text.TextUtils;
-import android.text.style.URLSpan;
-import android.text.util.Linkify;
-import android.text.util.Linkify.MatchFilter;
-import android.util.AttributeSet;
-import android.util.DisplayMetrics;
-import android.util.Log;
-import android.view.GestureDetector;
-import android.view.KeyEvent;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.inputmethod.BaseInputConnection;
-import android.view.inputmethod.CompletionInfo;
-import android.view.inputmethod.CorrectionInfo;
-import android.view.inputmethod.EditorInfo;
-import android.view.inputmethod.ExtractedText;
-import android.view.inputmethod.ExtractedTextRequest;
-import android.view.inputmethod.InputConnection;
-import android.widget.Scroller;
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.text.SpannableStringBuilder
+import android.text.TextUtils
+import android.text.style.URLSpan
+import android.text.util.Linkify
+import android.text.util.Linkify.MatchFilter
+import android.util.AttributeSet
+import android.util.DisplayMetrics
+import android.util.Log
+import android.view.GestureDetector
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.CompletionInfo
+import android.view.inputmethod.CorrectionInfo
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.ExtractedText
+import android.view.inputmethod.ExtractedTextRequest
+import android.view.inputmethod.InputConnection
+import android.widget.Scroller
+import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat
+import jackpal.androidterm.emulatorview.compat.KeycodeConstants
+import jackpal.androidterm.emulatorview.compat.Patterns
+import java.io.IOException
+import java.util.Arrays
+import java.util.Hashtable
+import java.util.regex.Pattern
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Hashtable;
+open class EmulatorView : View, GestureDetector.OnGestureListener {
+    companion object {
+        private const val TAG = "EmulatorView"
+        private const val LOG_KEY_EVENTS = false
+        private const val LOG_IME = false
+        private const val CURSOR_BLINK_PERIOD = 1000
+        private const val SELECT_TEXT_OFFSET_Y = -40
 
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat;
-import jackpal.androidterm.emulatorview.compat.KeycodeConstants;
-import jackpal.androidterm.emulatorview.compat.Patterns;
+        private val sHttpMatchFilter = object : MatchFilter {
+            override fun acceptMatch(s: CharSequence, start: Int, end: Int): Boolean {
+                return startsWith(s, start, end, "http:") || startsWith(s, start, end, "https:")
+            }
 
-/**
- * A view on a {@link TermSession}.  Displays the terminal emulator's screen,
- * provides access to its scrollback buffer, and passes input through to the
- * terminal emulator.
- * <p>
- * If this view is inflated from an XML layout, you need to call {@link
- * #attachSession attachSession} and {@link #setDensity setDensity} before using
- * the view.  If creating this view from code, use the {@link
- * #EmulatorView(Context, TermSession, DisplayMetrics)} constructor, which will
- * take care of this for you.
- */
-public class EmulatorView extends View implements GestureDetector.OnGestureListener {
-    private final static String TAG = "EmulatorView";
-    private final static boolean LOG_KEY_EVENTS = false;
-    private final static boolean LOG_IME = false;
+            private fun startsWith(s: CharSequence, start: Int, end: Int, prefix: String): Boolean {
+                val prefixLen = prefix.length
+                val fragmentLen = end - start
+                if (prefixLen > fragmentLen) {
+                    return false
+                }
+                for (i in 0 until prefixLen) {
+                    if (s[start + i] != prefix[i]) {
+                        return false
+                    }
+                }
+                return true
+            }
+        }
 
-    /**
-     * We defer some initialization until we have been layed out in the view
-     * hierarchy. The boolean tracks when we know what our size is.
-     */
-    private boolean mKnownSize;
+        private val sTrapAltAndMeta = Build.MODEL.contains("Transformer TF101")
+    }
 
-    // Set if initialization was deferred because a TermSession wasn't attached
-    private boolean mDeferInit = false;
+    private var mKnownSize = false
+    private var mDeferInit = false
+    private var mVisibleWidth = 0
+    private var mVisibleHeight = 0
+    private var mTermSession: TermSession? = null
+    private var mCharacterWidth = 0f
+    private var mCharacterHeight = 0
+    private var mTopOfScreenMargin = 0
+    private var mTextRenderer: TextRenderer? = null
+    private var mTextSize = 10
+    private var mCursorBlink = 0
+    private var mColorScheme: ColorScheme = BaseTextRenderer.defaultColorScheme
+    private var mForegroundPaint = Paint()
+    private var mBackgroundPaint = Paint()
+    private var mUseCookedIme = false
+    private var mEmulator: TerminalEmulator? = null
+    private var mRows = 0
+    private var mColumns = 0
+    private var mVisibleColumns = 0
+    private var mVisibleRows = 0
+    private var mTopRow = 0
+    private var mLeftColumn = 0
+    private var mCursorVisible = true
+    private var mIsSelectingText = false
+    private var mBackKeySendsCharacter = false
+    private var mControlKeyCode = 0
+    private var mFnKeyCode = 0
+    private var mIsControlKeySent = false
+    private var mIsFnKeySent = false
+    private var mMouseTracking = false
+    private var mDensity = 0f
+    private var mScaledDensity = 0f
+    private var mSelXAnchor = -1
+    private var mSelYAnchor = -1
+    private var mSelX1 = -1
+    private var mSelY1 = -1
+    private var mSelX2 = -1
+    private var mSelY2 = -1
 
-    private int mVisibleWidth;
-    private int mVisibleHeight;
-
-    private TermSession mTermSession;
-
-    /**
-     * Total width of each character, in pixels
-     */
-    private float mCharacterWidth;
-
-    /**
-     * Total height of each character, in pixels
-     */
-    private int mCharacterHeight;
-
-    /**
-     * Top-of-screen margin
-     */
-    private int mTopOfScreenMargin;
-
-    /**
-     * Used to render text
-     */
-    private TextRenderer mTextRenderer;
-
-    /**
-     * Text size. Zero means 4 x 8 font.
-     */
-    private int mTextSize = 10;
-
-    private int mCursorBlink;
-
-    /**
-     * Color scheme (default foreground/background colors).
-     */
-    private ColorScheme mColorScheme = BaseTextRenderer.defaultColorScheme;
-
-    private Paint mForegroundPaint;
-
-    private Paint mBackgroundPaint;
-
-    private boolean mUseCookedIme;
-
-    /**
-     * Our terminal emulator.
-     */
-    private TerminalEmulator mEmulator;
-
-    /**
-     * The number of rows of text to display.
-     */
-    private int mRows;
-
-    /**
-     * The number of columns of text to display.
-     */
-    private int mColumns;
-
-    /**
-     * The number of columns that are visible on the display.
-     */
-
-    private int mVisibleColumns;
-
-    /*
-     * The number of rows that are visible on the view
-     */
-    private int mVisibleRows;
-
-    /**
-     * The top row of text to display. Ranges from -activeTranscriptRows to 0
-     */
-    private int mTopRow;
-
-    private int mLeftColumn;
-
-    private static final int CURSOR_BLINK_PERIOD = 1000;
-
-    private boolean mCursorVisible = true;
-
-    private boolean mIsSelectingText = false;
-
-    private boolean mBackKeySendsCharacter = false;
-    private int mControlKeyCode;
-    private int mFnKeyCode;
-    private boolean mIsControlKeySent = false;
-    private boolean mIsFnKeySent = false;
-
-    private boolean mMouseTracking;
-
-    private float mDensity;
-
-    private float mScaledDensity;
-    private static final int SELECT_TEXT_OFFSET_Y = -40;
-    private int mSelXAnchor = -1;
-    private int mSelYAnchor = -1;
-    private int mSelX1 = -1;
-    private int mSelY1 = -1;
-    private int mSelX2 = -1;
-    private int mSelY2 = -1;
-
-    /**
-     * Routing alt and meta keyCodes away from the IME allows Alt key processing to work on
-     * the Asus Transformer TF101.
-     * It doesn't seem to harm anything else, but it also doesn't seem to be
-     * required on other platforms.
-     *
-     * This test should be refined as we learn more.
-     */
-    private final static boolean sTrapAltAndMeta = Build.MODEL.contains("Transformer TF101");
-
-    private final Runnable mBlinkCursor = new Runnable() {
-        public void run() {
+    private val mBlinkCursor = object : Runnable {
+        override fun run() {
             if (mCursorBlink != 0) {
-                mCursorVisible = ! mCursorVisible;
-                mHandler.postDelayed(this, CURSOR_BLINK_PERIOD);
+                mCursorVisible = !mCursorVisible
+                mHandler.postDelayed(this, CURSOR_BLINK_PERIOD.toLong())
             } else {
-                mCursorVisible = true;
+                mCursorVisible = true
             }
-            // Perhaps just invalidate the character with the cursor.
-            invalidate();
+            invalidate()
         }
-    };
+    }
 
-    private GestureDetector mGestureDetector;
-    private GestureDetector.OnGestureListener mExtGestureListener;
-    private Scroller mScroller;
-    private Runnable mFlingRunner = new Runnable() {
-        public void run() {
-            if (mScroller.isFinished()) {
-                return;
+    private var mGestureDetector: GestureDetector? = null
+    private var mExtGestureListener: GestureDetector.OnGestureListener? = null
+    private var mScroller: Scroller? = null
+    private val mFlingRunner = object : Runnable {
+        override fun run() {
+            if (mScroller!!.isFinished) {
+                return
             }
-            // Check whether mouse tracking was turned on during fling.
-            if (isMouseTrackingActive()) {
-                return;
+            if (isMouseTrackingActive) {
+                return
             }
 
-            boolean more = mScroller.computeScrollOffset();
-            int newTopRow = mScroller.getCurrY();
+            val more = mScroller!!.computeScrollOffset()
+            val newTopRow = mScroller!!.currY
             if (newTopRow != mTopRow) {
-                mTopRow = newTopRow;
-                invalidate();
+                mTopRow = newTopRow
+                invalidate()
             }
 
             if (more) {
-                post(this);
+                post(this)
             }
-
-        }
-    };
-
-    /**
-     *
-     * A hash table of underlying URLs to implement clickable links.
-     */
-    private Hashtable<Integer,URLSpan[]> mLinkLayer = new Hashtable<>();
-
-    /**
-     * Accept links that start with http[s]:
-     */
-    private static class HttpMatchFilter implements MatchFilter {
-        public boolean acceptMatch(CharSequence s, int start, int end) {
-            return startsWith(s, start, end, "http:") ||
-                startsWith(s, start, end, "https:");
-        }
-
-        private boolean startsWith(CharSequence s, int start, int end,
-                String prefix) {
-            int prefixLen = prefix.length();
-            int fragmentLen = end - start;
-            if (prefixLen > fragmentLen) {
-                return false;
-            }
-            for (int i = 0; i < prefixLen; i++) {
-                if (s.charAt(start + i) != prefix.charAt(i)) {
-                    return false;
-                }
-            }
-            return true;
         }
     }
 
-    private static MatchFilter sHttpMatchFilter = new HttpMatchFilter();
+    private val mLinkLayer = Hashtable<Int, Array<URLSpan?>>()
 
-    /**
-     * Convert any URLs in the current row into a URLSpan,
-     * and store that result in a hash table of URLSpan entries.
-     *
-     * @param row The number of the row to check for links
-     * @return The number of lines in a multi-line-wrap set of links
-     */
-    private int createLinks(int row)
-    {
-        TranscriptScreen transcriptScreen = mEmulator.getScreen();
-        char [] line = transcriptScreen.getScriptLine(row);
-        int lineCount = 1;
+    private inner class MouseTrackingFlingRunner : Runnable {
+        var mScroller: Scroller? = null
+        var mLastY = 0
+        var mMotionEvent: MotionEvent? = null
 
-        //Nothing to do if there's no text.
-        if(line == null)
-            return lineCount;
-
-        /* If this is not a basic line, the array returned from getScriptLine()
-         * could have arbitrary garbage at the end -- find the point at which
-         * the line ends and only include that in the text to linkify.
-         *
-         * XXX: The fact that the array returned from getScriptLine() on a
-         * basic line contains no garbage is an implementation detail -- the
-         * documented behavior explicitly allows garbage at the end! */
-        int lineLen;
-        boolean textIsBasic = transcriptScreen.isBasicLine(row);
-        if (textIsBasic) {
-            lineLen = line.length;
-        } else {
-            // The end of the valid data is marked by a NUL character
-            for (lineLen = 0; line[lineLen] != 0; ++lineLen);
+        fun fling(e: MotionEvent?, velocityX: Float, velocityY: Float) {
+            val SCALE = 0.15f
+            mScroller!!.fling(
+                0,
+                0,
+                -(velocityX * SCALE).toInt(),
+                -(velocityY * SCALE).toInt(),
+                0,
+                0,
+                -100,
+                100
+            )
+            mLastY = 0
+            mMotionEvent = e
+            post(this)
         }
 
-        SpannableStringBuilder textToLinkify = new SpannableStringBuilder(new String(line, 0, lineLen));
-
-        boolean lineWrap = transcriptScreen.getScriptLineWrap(row);
-
-        //While the current line has a wrap
-        while (lineWrap)
-        {
-            //Get next line
-            int nextRow = row + lineCount;
-            line = transcriptScreen.getScriptLine(nextRow);
-
-            //If next line is blank, don't try and append
-            if(line == null)
-                break;
-
-            boolean lineIsBasic = transcriptScreen.isBasicLine(nextRow);
-            if (textIsBasic && !lineIsBasic) {
-                textIsBasic = lineIsBasic;
+        override fun run() {
+            if (mScroller!!.isFinished) {
+                return
             }
-            if (lineIsBasic) {
-                lineLen = line.length;
-            } else {
-                // The end of the valid data is marked by a NUL character
-                for (lineLen = 0; line[lineLen] != 0; ++lineLen);
+            if (!isMouseTrackingActive) {
+                return
             }
 
-            textToLinkify.append(new String(line, 0, lineLen));
-
-            //Check if line after next is wrapped
-            lineWrap = transcriptScreen.getScriptLineWrap(nextRow);
-            ++lineCount;
-        }
-
-        Linkify.addLinks(textToLinkify, Patterns.WEB_URL,
-            null, sHttpMatchFilter, null);
-        URLSpan [] urls = textToLinkify.getSpans(0, textToLinkify.length(), URLSpan.class);
-        if(urls.length > 0)
-        {
-            int columns = mColumns;
-
-            //re-index row to 0 if it is negative
-            int screenRow = row - mTopRow;
-
-            //Create and initialize set of links
-            URLSpan [][] linkRows = new URLSpan[lineCount][];
-            for(int i=0; i<lineCount; ++i)
-            {
-                linkRows[i] = new URLSpan[columns];
-                Arrays.fill(linkRows[i], null);
+            val more = mScroller!!.computeScrollOffset()
+            val newY = mScroller!!.currY
+            while (mLastY < newY) {
+                mLastY++
+                sendMouseEventCode(mMotionEvent!!, 65)
             }
-
-            //For each URL:
-            for (URLSpan url : urls) {
-                int spanStart = textToLinkify.getSpanStart(url);
-                int spanEnd = textToLinkify.getSpanEnd(url);
-
-                // Build accurate indices for links
-                int startRow;
-                int startCol;
-                int endRow;
-                int endCol;
-                if (textIsBasic) {
-                    /* endRow/endCol must be the last character of the link,
-                     * not one after -- otherwise endRow might be too large */
-                    int spanLastPos = spanEnd - 1;
-                    // Basic line -- can assume one char per column
-                    startRow = spanStart / mColumns;
-                    startCol = spanStart % mColumns;
-                    endRow = spanLastPos / mColumns;
-                    endCol = spanLastPos % mColumns;
-                } else {
-                    /* Iterate over the line to get starting and ending columns
-                     * for this span */
-                    startRow = 0;
-                    startCol = 0;
-                    for (int i = 0; i < spanStart; ++i) {
-                        char c = textToLinkify.charAt(i);
-                        if (Character.isHighSurrogate(c)) {
-                            ++i;
-                            startCol += UnicodeTranscript.charWidth(c, textToLinkify.charAt(i));
-                        } else {
-                            startCol += UnicodeTranscript.charWidth(c);
-                        }
-                        if (startCol >= columns) {
-                            ++startRow;
-                            startCol %= columns;
-                        }
-                    }
-
-                    endRow = startRow;
-                    endCol = startCol;
-                    for (int i = spanStart; i < spanEnd; ++i) {
-                        char c = textToLinkify.charAt(i);
-                        if (Character.isHighSurrogate(c)) {
-                            ++i;
-                            endCol += UnicodeTranscript.charWidth(c, textToLinkify.charAt(i));
-                        } else {
-                            endCol += UnicodeTranscript.charWidth(c);
-                        }
-                        if (endCol >= columns) {
-                            ++endRow;
-                            endCol %= columns;
-                        }
-                    }
-                }
-
-                //Fill linkRows with the URL where appropriate
-                for (int i = startRow; i <= endRow; ++i) {
-                    int runStart = (i == startRow) ? startCol : 0;
-                    int runEnd = (i == endRow) ? endCol : mColumns - 1;
-
-                    Arrays.fill(linkRows[i], runStart, runEnd + 1, url);
-                }
-            }
-
-            //Add links into the link layer for later retrieval
-            for(int i=0; i<lineCount; ++i)
-                mLinkLayer.put(screenRow + i, linkRows[i]);
-        }
-        return lineCount;
-    }
-
-    /**
-     * Sends mouse wheel codes to terminal in response to fling.
-     */
-    private class MouseTrackingFlingRunner implements Runnable {
-        private Scroller mScroller;
-        private int mLastY;
-        private MotionEvent mMotionEvent;
-
-        public void fling(MotionEvent e, float velocityX, float velocityY) {
-            float SCALE = 0.15f;
-            mScroller.fling(0, 0,
-                    -(int) (velocityX * SCALE), -(int) (velocityY * SCALE),
-                    0, 0, -100, 100);
-            mLastY = 0;
-            mMotionEvent = e;
-            post(this);
-        }
-
-        public void run() {
-            if (mScroller.isFinished()) {
-                return;
-            }
-            // Check whether mouse tracking was turned off during fling.
-            if (!isMouseTrackingActive()) {
-                return;
-            }
-
-            boolean more = mScroller.computeScrollOffset();
-            int newY = mScroller.getCurrY();
-            for (; mLastY < newY; mLastY++) {
-                sendMouseEventCode(mMotionEvent, 65);
-            }
-            for (; mLastY > newY; mLastY--) {
-                sendMouseEventCode(mMotionEvent, 64);
+            while (mLastY > newY) {
+                mLastY--
+                sendMouseEventCode(mMotionEvent!!, 64)
             }
 
             if (more) {
-                post(this);
+                post(this)
             }
         }
     }
 
-    private MouseTrackingFlingRunner mMouseTrackingFlingRunner = new MouseTrackingFlingRunner();
+    private val mMouseTrackingFlingRunner = MouseTrackingFlingRunner()
+    private var mScrollRemainder = 0f
+    private var mKeyListener: TermKeyListener? = null
+    private var mImeBuffer = ""
+    private val mHandler = Handler(Looper.getMainLooper())
 
-    private float mScrollRemainder;
-    private TermKeyListener mKeyListener;
-
-    private String mImeBuffer = "";
-
-    /**
-     * Our message handler class. Implements a periodic callback.
-     */
-    private final Handler mHandler = new Handler();
-
-    /**
-     * Called by the TermSession when the contents of the view need updating
-     */
-    private UpdateCallback mUpdateNotify = new UpdateCallback() {
-        public void onUpdate() {
-            if ( mIsSelectingText ) {
-                int rowShift = mEmulator.getScrollCounter();
-                mSelY1 -= rowShift;
-                mSelY2 -= rowShift;
-                mSelYAnchor -= rowShift;
+    private val mUpdateNotify = object : UpdateCallback {
+        override fun onUpdate() {
+            if (mIsSelectingText) {
+                val rowShift = mEmulator!!.scrollCounter
+                mSelY1 -= rowShift
+                mSelY2 -= rowShift
+                mSelYAnchor -= rowShift
             }
-            mEmulator.clearScrollCounter();
-            ensureCursorVisible();
-            invalidate();
+            mEmulator!!.clearScrollCounter()
+            ensureCursorVisible()
+            invalidate()
         }
-    };
-
-    /**
-     * Create an <code>EmulatorView</code> for a {@link TermSession}.
-     *
-     * @param context The {@link Context} for the view.
-     * @param session The {@link TermSession} this view will be displaying.
-     * @param metrics The {@link DisplayMetrics} of the screen on which the view
-     *                will be displayed.
-     */
-    public EmulatorView(Context context, TermSession session, DisplayMetrics metrics) {
-        super(context);
-        attachSession(session);
-        setDensity(metrics);
-        commonConstructor(context);
     }
 
-    /**
-     * Constructor called when inflating this view from XML.
-     * <p>
-     * You should call {@link #attachSession attachSession} and {@link
-     * #setDensity setDensity} before using an <code>EmulatorView</code> created
-     * using this constructor.
-     */
-    public EmulatorView(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        commonConstructor(context);
+    constructor(context: Context, session: TermSession, metrics: DisplayMetrics) : super(context) {
+        attachSession(session)
+        setDensity(metrics)
+        commonConstructor(context)
     }
 
-    /**
-     * Constructor called when inflating this view from XML with a
-     * default style set.
-     * <p>
-     * You should call {@link #attachSession attachSession} and {@link
-     * #setDensity setDensity} before using an <code>EmulatorView</code> created
-     * using this constructor.
-     */
-    public EmulatorView(Context context, AttributeSet attrs, int defStyle) {
-        super(context, attrs, defStyle);
-        commonConstructor(context);
+    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
+        commonConstructor(context)
     }
 
-    private void commonConstructor(Context context) {
-        // TODO: See if we want to use the API level 11 constructor to get new flywheel feature.
-        mScroller = new Scroller(context);
-        mMouseTrackingFlingRunner.mScroller = new Scroller(context);
+    constructor(context: Context, attrs: AttributeSet?, defStyle: Int) : super(
+        context,
+        attrs,
+        defStyle
+    ) {
+        commonConstructor(context)
     }
 
-    /**
-     * Attach a {@link TermSession} to this view.
-     *
-     * @param session The {@link TermSession} this view will be displaying.
-     */
-    public void attachSession(TermSession session) {
-        mTextRenderer = null;
-        mForegroundPaint = new Paint();
-        mBackgroundPaint = new Paint();
-        mTopRow = 0;
-        mLeftColumn = 0;
-        mGestureDetector = new GestureDetector(this);
-        // mGestureDetector.setIsLongpressEnabled(false);
-        setVerticalScrollBarEnabled(true);
-        setFocusable(true);
-        setFocusableInTouchMode(true);
+    private fun commonConstructor(context: Context) {
+        mScroller = Scroller(context)
+        mMouseTrackingFlingRunner.mScroller = Scroller(context)
+    }
 
-        mTermSession = session;
+    fun attachSession(session: TermSession) {
+        mTextRenderer = null
+        mForegroundPaint = Paint()
+        mBackgroundPaint = Paint()
+        mTopRow = 0
+        mLeftColumn = 0
+        mGestureDetector = GestureDetector(this)
+        isVerticalScrollBarEnabled = true
+        isFocusable = true
+        isFocusableInTouchMode = true
 
-        mKeyListener = new TermKeyListener(session);
-        session.setKeyListener(mKeyListener);
+        mTermSession = session
 
-        // Do init now if it was deferred until a TermSession was attached
+        mKeyListener = TermKeyListener(session)
+        session.setKeyListener(mKeyListener)
+
         if (mDeferInit) {
-            mDeferInit = false;
-            mKnownSize = true;
-            initialize();
+            mDeferInit = false
+            mKnownSize = true
+            initialize()
         }
     }
 
-    /**
-     * Update the screen density for the screen on which the view is displayed.
-     *
-     * @param metrics The {@link DisplayMetrics} of the screen.
-     */
-    public void setDensity(DisplayMetrics metrics) {
-        if (mDensity == 0) {
-            // First time we've known the screen density, so update font size
-            mTextSize = (int) (mTextSize * metrics.density);
+    fun setDensity(metrics: DisplayMetrics) {
+        if (mDensity == 0f) {
+            mTextSize = (mTextSize * metrics.density).toInt()
         }
-        mDensity = metrics.density;
-        mScaledDensity = metrics.scaledDensity;
+        mDensity = metrics.density
+        mScaledDensity = metrics.scaledDensity
     }
 
-    /**
-     * Inform the view that it is now visible on screen.
-     */
-    public void onResume() {
-        updateSize(false);
+    fun onResume() {
+        updateSize(false)
         if (mCursorBlink != 0) {
-            mHandler.postDelayed(mBlinkCursor, CURSOR_BLINK_PERIOD);
+            mHandler.postDelayed(mBlinkCursor, CURSOR_BLINK_PERIOD.toLong())
         }
-        if (mKeyListener != null) {
-            mKeyListener.onResume();
-        }
+        mKeyListener?.onResume()
     }
 
-    /**
-     * Inform the view that it is no longer visible on the screen.
-     */
-    public void onPause() {
+    fun onPause() {
         if (mCursorBlink != 0) {
-            mHandler.removeCallbacks(mBlinkCursor);
+            mHandler.removeCallbacks(mBlinkCursor)
         }
-        if (mKeyListener != null) {
-            mKeyListener.onPause();
-        }
+        mKeyListener?.onPause()
     }
 
-    /**
-     * Set this <code>EmulatorView</code>'s color scheme.
-     *
-     * @param scheme The {@link ColorScheme} to use (use null for the default
-     *               scheme).
-     * @see TermSession#setColorScheme
-     * @see ColorScheme
-     */
-    public void setColorScheme(ColorScheme scheme) {
-        if (scheme == null) {
-            mColorScheme = BaseTextRenderer.defaultColorScheme;
-        } else {
-            mColorScheme = scheme;
-        }
-        updateText();
+    fun setColorScheme(scheme: ColorScheme?) {
+        mColorScheme = scheme ?: BaseTextRenderer.defaultColorScheme
+        updateText()
     }
 
-    @Override
-    public boolean onCheckIsTextEditor() {
-        return true;
+    override fun onCheckIsTextEditor(): Boolean {
+        return true
     }
 
-    @Override
-    public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        outAttrs.inputType = mUseCookedIme ?
-                EditorInfo.TYPE_CLASS_TEXT :
-                EditorInfo.TYPE_NULL;
-        return new BaseInputConnection(this, true) {
-            /**
-             * Used to handle composing text requests
-             */
-            private int mCursor;
-            private int mComposingTextStart;
-            private int mComposingTextEnd;
-            private int mSelectedTextStart;
-            private int mSelectedTextEnd;
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
+        outAttrs.inputType = if (mUseCookedIme) EditorInfo.TYPE_CLASS_TEXT else EditorInfo.TYPE_NULL
+        return object : BaseInputConnection(this, true) {
+            private var mCursor = 0
+            private var mComposingTextStart = 0
+            private var mComposingTextEnd = 0
+            private var mSelectedTextStart = 0
+            private var mSelectedTextEnd = 0
 
-            private void sendText(CharSequence text) {
-                int n = text.length();
-                char c;
+            private fun sendText(text: CharSequence) {
+                val n = text.length
                 try {
-                    for(int i = 0; i < n; i++) {
-                        c = text.charAt(i);
+                    var i = 0
+                    while (i < n) {
+                        val c = text[i]
                         if (Character.isHighSurrogate(c)) {
-                            int codePoint;
-                            if (++i < n) {
-                                codePoint = Character.toCodePoint(c, text.charAt(i));
+                            val codePoint = if (++i < n) {
+                                Character.toCodePoint(c, text[i])
                             } else {
-                                // Unicode Replacement Glyph, aka white question mark in black diamond.
-                                codePoint = '\ufffd';
+                                '\ufffd'.code
                             }
-                            mapAndSend(codePoint);
+                            mapAndSend(codePoint)
                         } else {
-                            mapAndSend(c);
+                            mapAndSend(c.code)
                         }
+                        i++
                     }
-                } catch (IOException e) {
-                    Log.e(TAG, "error writing ", e);
+                } catch (e: IOException) {
+                    Log.e(TAG, "error writing ", e)
                 }
             }
 
-            private void mapAndSend(int c) throws IOException {
-                int result = mKeyListener.mapControlChar(c);
+            @Throws(IOException::class)
+            private fun mapAndSend(c: Int) {
+                val result = mKeyListener!!.mapControlChar(c)
                 if (result < TermKeyListener.KEYCODE_OFFSET) {
-                    mTermSession.write(result);
+                    mTermSession!!.write(result)
                 } else {
-                    mKeyListener.handleKeyCode(result - TermKeyListener.KEYCODE_OFFSET, null, getKeypadApplicationMode());
+                    mKeyListener!!.handleKeyCode(
+                        result - TermKeyListener.KEYCODE_OFFSET,
+                        null,
+                        getKeypadApplicationMode()
+                    )
                 }
-                clearSpecialKeyStatus();
+                clearSpecialKeyStatus()
             }
 
-            public boolean beginBatchEdit() {
+            override fun beginBatchEdit(): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "beginBatchEdit");
+                    Log.w(TAG, "beginBatchEdit")
                 }
-                setImeBuffer("");
-                mCursor = 0;
-                mComposingTextStart = 0;
-                mComposingTextEnd = 0;
-                return true;
+                setImeBuffer("")
+                mCursor = 0
+                mComposingTextStart = 0
+                mComposingTextEnd = 0
+                return true
             }
 
-            public boolean clearMetaKeyStates(int arg0) {
+            override fun clearMetaKeyStates(states: Int): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "clearMetaKeyStates " + arg0);
+                    Log.w(TAG, "clearMetaKeyStates $states")
                 }
-                return false;
+                return false
             }
 
-            public boolean commitCompletion(CompletionInfo arg0) {
+            override fun commitCompletion(text: CompletionInfo?): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "commitCompletion " + arg0);
+                    Log.w(TAG, "commitCompletion $text")
                 }
-                return false;
+                return false
             }
 
-            public boolean endBatchEdit() {
+            override fun endBatchEdit(): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "endBatchEdit");
+                    Log.w(TAG, "endBatchEdit")
                 }
-                return true;
+                return true
             }
 
-            public boolean finishComposingText() {
+            override fun finishComposingText(): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "finishComposingText");
+                    Log.w(TAG, "finishComposingText")
                 }
-                sendText(mImeBuffer);
-                setImeBuffer("");
-                mComposingTextStart = 0;
-                mComposingTextEnd = 0;
-                mCursor = 0;
-                return true;
+                sendText(mImeBuffer)
+                setImeBuffer("")
+                mComposingTextStart = 0
+                mComposingTextEnd = 0
+                mCursor = 0
+                return true
             }
 
-            public int getCursorCapsMode(int reqModes) {
+            override fun getCursorCapsMode(reqModes: Int): Int {
                 if (LOG_IME) {
-                    Log.w(TAG, "getCursorCapsMode(" + reqModes + ")");
+                    Log.w(TAG, "getCursorCapsMode($reqModes)")
                 }
-                int mode = 0;
-                if ((reqModes & TextUtils.CAP_MODE_CHARACTERS) != 0) {
-                    mode |= TextUtils.CAP_MODE_CHARACTERS;
+                var mode = 0
+                if (reqModes and TextUtils.CAP_MODE_CHARACTERS != 0) {
+                    mode = mode or TextUtils.CAP_MODE_CHARACTERS
                 }
-                return mode;
+                return mode
             }
 
-            public ExtractedText getExtractedText(ExtractedTextRequest arg0,
-                    int arg1) {
+            override fun getExtractedText(
+                request: ExtractedTextRequest?,
+                flags: Int
+            ): ExtractedText? {
                 if (LOG_IME) {
-                    Log.w(TAG, "getExtractedText" + arg0 + "," + arg1);
+                    Log.w(TAG, "getExtractedText$request,$flags")
                 }
-                return null;
+                return null
             }
 
-            public CharSequence getTextAfterCursor(int n, int flags) {
+            override fun getTextAfterCursor(length: Int, flags: Int): CharSequence {
                 if (LOG_IME) {
-                    Log.w(TAG, "getTextAfterCursor(" + n + "," + flags + ")");
+                    Log.w(TAG, "getTextAfterCursor($length,$flags)")
                 }
-                int len = Math.min(n, mImeBuffer.length() - mCursor);
-                if (len <= 0 || mCursor < 0 || mCursor >= mImeBuffer.length()) {
-                    return "";
+                val len = length.coerceAtMost(mImeBuffer.length - mCursor)
+                if (len <= 0 || mCursor < 0 || mCursor >= mImeBuffer.length) {
+                    return ""
                 }
-                return mImeBuffer.substring(mCursor, mCursor + len);
+                return mImeBuffer.substring(mCursor, mCursor + len)
             }
 
-            public CharSequence getTextBeforeCursor(int n, int flags) {
+            override fun getTextBeforeCursor(length: Int, flags: Int): CharSequence {
                 if (LOG_IME) {
-                    Log.w(TAG, "getTextBeforeCursor(" + n + "," + flags + ")");
+                    Log.w(TAG, "getTextBeforeCursor($length,$flags)")
                 }
-                int len = Math.min(n, mCursor);
-                if (len <= 0 || mCursor < 0 || mCursor >= mImeBuffer.length()) {
-                    return "";
+                val len = length.coerceAtMost(mCursor)
+                if (len <= 0 || mCursor < 0 || mCursor >= mImeBuffer.length) {
+                    return ""
                 }
-                return mImeBuffer.substring(mCursor-len, mCursor);
+                return mImeBuffer.substring(mCursor - len, mCursor)
             }
 
-            public boolean performContextMenuAction(int arg0) {
+            override fun performContextMenuAction(id: Int): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "performContextMenuAction" + arg0);
+                    Log.w(TAG, "performContextMenuAction$id")
                 }
-                return true;
+                return true
             }
 
-            public boolean performPrivateCommand(String arg0, Bundle arg1) {
+            override fun performPrivateCommand(action: String?, data: Bundle?): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "performPrivateCommand" + arg0 + "," + arg1);
+                    Log.w(TAG, "performPrivateCommand$action,$data")
                 }
-                return true;
+                return true
             }
 
-            public boolean reportFullscreenMode(boolean arg0) {
+            override fun reportFullscreenMode(enabled: Boolean): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "reportFullscreenMode" + arg0);
+                    Log.w(TAG, "reportFullscreenMode$enabled")
                 }
-                return true;
+                return true
             }
 
-            public boolean commitCorrection (CorrectionInfo correctionInfo) {
+            override fun commitCorrection(info: CorrectionInfo?): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "commitCorrection");
+                    Log.w(TAG, "commitCorrection")
                 }
-                return true;
+                return true
             }
 
-            public boolean commitText(CharSequence text, int newCursorPosition) {
+            override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "commitText(\"" + text + "\", " + newCursorPosition + ")");
+                    Log.w(TAG, "commitText(\"$text\", $newCursorPosition)")
                 }
-                clearComposingText();
-                sendText(text);
-                setImeBuffer("");
-                mCursor = 0;
-                return true;
+                clearComposingText()
+                sendText(text!!)
+                setImeBuffer("")
+                mCursor = 0
+                return true
             }
 
-            private void clearComposingText() {
-                int len = mImeBuffer.length();
+            private fun clearComposingText() {
+                val len = mImeBuffer.length
                 if (mComposingTextStart > len || mComposingTextEnd > len) {
-                    mComposingTextEnd = mComposingTextStart = 0;
-                    return;
+                    mComposingTextEnd = 0
+                    mComposingTextStart = 0
+                    return
                 }
-                setImeBuffer(mImeBuffer.substring(0, mComposingTextStart) +
-                    mImeBuffer.substring(mComposingTextEnd));
-                if (mCursor < mComposingTextStart) {
-                    // do nothing
-                } else if (mCursor < mComposingTextEnd) {
-                    mCursor = mComposingTextStart;
-                } else {
-                    mCursor -= mComposingTextEnd - mComposingTextStart;
+                setImeBuffer(
+                    mImeBuffer.substring(0, mComposingTextStart) + mImeBuffer.substring(
+                        mComposingTextEnd
+                    )
+                )
+                mCursor = when {
+                    mCursor < mComposingTextStart -> mCursor
+                    mCursor < mComposingTextEnd -> mComposingTextStart
+                    else -> mCursor - (mComposingTextEnd - mComposingTextStart)
                 }
-                mComposingTextEnd = mComposingTextStart = 0;
+                mComposingTextEnd = 0
+                mComposingTextStart = 0
             }
 
-            public boolean deleteSurroundingText(int leftLength, int rightLength) {
+            override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "deleteSurroundingText(" + leftLength +
-                            "," + rightLength + ")");
+                    Log.w(TAG, "deleteSurroundingText($beforeLength,$afterLength)")
                 }
-                if (leftLength > 0) {
-                    for (int i = 0; i < leftLength; i++) {
-                        sendKeyEvent(
-                            new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
+                if (beforeLength > 0) {
+                    for (i in 0 until beforeLength) {
+                        sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
                     }
-                } else if ((leftLength == 0) && (rightLength == 0)) {
-                    // Delete key held down / repeating
-                    sendKeyEvent(
-                        new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
+                } else if (beforeLength == 0 && afterLength == 0) {
+                    sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
                 }
-                // TODO: handle forward deletes.
-                return true;
+                return true
             }
 
-            public boolean performEditorAction(int actionCode) {
+            override fun performEditorAction(actionCode: Int): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "performEditorAction(" + actionCode + ")");
+                    Log.w(TAG, "performEditorAction($actionCode)")
                 }
                 if (actionCode == EditorInfo.IME_ACTION_UNSPECIFIED) {
-                    // The "return" key has been pressed on the IME.
-                    sendText("\r");
+                    sendText("\r")
                 }
-                return true;
+                return true
             }
 
-            public boolean sendKeyEvent(KeyEvent event) {
+            override fun sendKeyEvent(event: KeyEvent?): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "sendKeyEvent(" + event + ")");
+                    Log.w(TAG, "sendKeyEvent($event)")
                 }
-                // Some keys are sent here rather than to commitText.
-                // In particular, del and the digit keys are sent here.
-                // (And I have reports that the HTC Magic also sends Return here.)
-                // As a bit of defensive programming, handle every key.
-                dispatchKeyEvent(event);
-                return true;
+                dispatchKeyEvent(event!!)
+                return true
             }
 
-            public boolean setComposingText(CharSequence text, int newCursorPosition) {
+            override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "setComposingText(\"" + text + "\", " + newCursorPosition + ")");
+                    Log.w(TAG, "setComposingText(\"$text\", $newCursorPosition)")
                 }
-                int len = mImeBuffer.length();
+                val len = mImeBuffer.length
                 if (mComposingTextStart > len || mComposingTextEnd > len) {
-                    return false;
+                    return false
                 }
-                setImeBuffer(mImeBuffer.substring(0, mComposingTextStart) +
-                    text + mImeBuffer.substring(mComposingTextEnd));
-                mComposingTextEnd = mComposingTextStart + text.length();
-                mCursor = newCursorPosition > 0 ? mComposingTextEnd + newCursorPosition - 1
-                        : mComposingTextStart - newCursorPosition;
-                return true;
+                setImeBuffer(
+                    mImeBuffer.substring(
+                        0,
+                        mComposingTextStart
+                    ) + text + mImeBuffer.substring(mComposingTextEnd)
+                )
+                mComposingTextEnd = mComposingTextStart + text!!.length
+                mCursor =
+                    if (newCursorPosition > 0) mComposingTextEnd + newCursorPosition - 1 else mComposingTextStart - newCursorPosition
+                return true
             }
 
-            public boolean setSelection(int start, int end) {
+            override fun setSelection(start: Int, end: Int): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "setSelection" + start + "," + end);
+                    Log.w(TAG, "setSelection$start,$end")
                 }
-                int length = mImeBuffer.length();
+                val length = mImeBuffer.length
                 if (start == end && start > 0 && start < length) {
-                    mSelectedTextStart = mSelectedTextEnd = 0;
-                    mCursor = start;
+                    mSelectedTextStart = 0
+                    mSelectedTextEnd = 0
+                    mCursor = start
                 } else if (start < end && start > 0 && end < length) {
-                    mSelectedTextStart = start;
-                    mSelectedTextEnd = end;
-                    mCursor = start;
+                    mSelectedTextStart = start
+                    mSelectedTextEnd = end
+                    mCursor = start
                 }
-                return true;
+                return true
             }
 
-            public boolean setComposingRegion(int start, int end) {
+            override fun setComposingRegion(start: Int, end: Int): Boolean {
                 if (LOG_IME) {
-                    Log.w(TAG, "setComposingRegion " + start + "," + end);
+                    Log.w(TAG, "setComposingRegion $start,$end")
                 }
-                if (start < end && start > 0 && end < mImeBuffer.length()) {
-                    clearComposingText();
-                    mComposingTextStart = start;
-                    mComposingTextEnd = end;
+                if (start < end && start > 0 && end < mImeBuffer.length) {
+                    clearComposingText()
+                    mComposingTextStart = start
+                    mComposingTextEnd = end
                 }
-                return true;
+                return true
             }
 
-            public CharSequence getSelectedText(int flags) {
+            override fun getSelectedText(flags: Int): CharSequence {
                 if (LOG_IME) {
-                    Log.w(TAG, "getSelectedText " + flags);
+                    Log.w(TAG, "getSelectedText $flags")
                 }
-                int len = mImeBuffer.length();
+                val len = mImeBuffer.length
                 if (mSelectedTextEnd >= len || mSelectedTextStart > mSelectedTextEnd) {
-                    return "";
+                    return ""
                 }
-                return mImeBuffer.substring(mSelectedTextStart, mSelectedTextEnd+1);
+                return mImeBuffer.substring(mSelectedTextStart, mSelectedTextEnd + 1)
             }
-
-        };
-    }
-
-    private void setImeBuffer(String buffer) {
-        if (!buffer.equals(mImeBuffer)) {
-            invalidate();
         }
-        mImeBuffer = buffer;
     }
 
-    /**
-     * Get the terminal emulator's keypad application mode.
-     */
-    public boolean getKeypadApplicationMode() {
-        return mEmulator.getKeypadApplicationMode();
+    private fun setImeBuffer(buffer: String) {
+        if (buffer != mImeBuffer) {
+            invalidate()
+        }
+        mImeBuffer = buffer
     }
 
-    /**
-     * Set a {@link android.view.GestureDetector.OnGestureListener
-     * GestureDetector.OnGestureListener} to receive gestures performed on this
-     * view.  Can be used to implement additional
-     * functionality via touch gestures or override built-in gestures.
-     *
-     * @param listener The {@link
-     *                 android.view.GestureDetector.OnGestureListener
-     *                 GestureDetector.OnGestureListener} which will receive
-     *                 gestures.
-     */
-    public void setExtGestureListener(GestureDetector.OnGestureListener listener) {
-        mExtGestureListener = listener;
+    fun getKeypadApplicationMode(): Boolean {
+        return mEmulator!!.keypadApplicationMode
     }
 
-    /**
-     * Compute the vertical range that the vertical scrollbar represents.
-     */
-    @Override
-    protected int computeVerticalScrollRange() {
-        return mEmulator.getScreen().getActiveRows();
+    fun setExtGestureListener(listener: GestureDetector.OnGestureListener?) {
+        mExtGestureListener = listener
     }
 
-    /**
-     * Compute the vertical extent of the horizontal scrollbar's thumb within
-     * the vertical range. This value is used to compute the length of the thumb
-     * within the scrollbar's track.
-     */
-    @Override
-    protected int computeVerticalScrollExtent() {
-        return mRows;
+    override fun computeVerticalScrollRange(): Int {
+        return mEmulator!!.screen!!.activeRows
     }
 
-    /**
-     * Compute the vertical offset of the vertical scrollbar's thumb within the
-     * horizontal range. This value is used to compute the position of the thumb
-     * within the scrollbar's track.
-     */
-    @Override
-    protected int computeVerticalScrollOffset() {
-        return mEmulator.getScreen().getActiveRows() + mTopRow - mRows;
+    override fun computeVerticalScrollExtent(): Int {
+        return mRows
     }
 
-    /**
-     * Call this to initialize the view.
-     */
-    private void initialize() {
-        TermSession session = mTermSession;
-
-        updateText();
-
-        mEmulator = session.getEmulator();
-        session.setUpdateCallback(mUpdateNotify);
-
-        requestFocus();
+    override fun computeVerticalScrollOffset(): Int {
+        return mEmulator!!.screen!!.activeRows + mTopRow - mRows
     }
 
-    /**
-     * Get the {@link TermSession} corresponding to this view.
-     *
-     * @return The {@link TermSession} object for this view.
-     */
-    public TermSession getTermSession() {
-        return mTermSession;
+    private fun initialize() {
+        val session = mTermSession ?: return
+
+        updateText()
+
+        mEmulator = session.emulator
+        session.setUpdateCallback(mUpdateNotify)
+
+        requestFocus()
     }
 
-    /**
-     * Get the width of the visible portion of this view.
-     *
-     * @return The width of the visible portion of this view, in pixels.
-     */
-    public int getVisibleWidth() {
-        return mVisibleWidth;
+    val termSession: TermSession?
+        get() = mTermSession
+
+    val visibleWidth: Int
+        get() = mVisibleWidth
+
+    val visibleHeight: Int
+        get() = mVisibleHeight
+
+    fun getVisibleRows(): Int {
+        return mVisibleRows
     }
 
-    /**
-     * Get the height of the visible portion of this view.
-     *
-     * @return The height of the visible portion of this view, in pixels.
-     */
-    public int getVisibleHeight() {
-        return mVisibleHeight;
+    fun getVisibleColumns(): Int {
+        return mVisibleColumns
     }
 
-    /**
-     * Gets the visible number of rows for the view, useful when updating Ptysize with the correct number of rows/columns
-     * @return The rows for the visible number of rows, this is calculate in updateSize(int w, int h), please call
-     * updateSize(true) if the view changed, to get the correct calculation before calling this.
-     */
-    public int getVisibleRows()
-    {
-      return mVisibleRows;
-    }
-
-    /**
-     * Gets the visible number of columns for the view, again useful to get when updating PTYsize
-     * @return the columns for the visisble view, please call updateSize(true) to re-calculate this if the view has changed
-     */
-    public int getVisibleColumns()
-    {
-      return mVisibleColumns;
-    }
-
-
-    /**
-     * Page the terminal view (scroll it up or down by <code>delta</code>
-     * screenfuls).
-     *
-     * @param delta The number of screens to scroll. Positive means scroll down,
-     *        negative means scroll up.
-     */
-    public void page(int delta) {
+    fun page(delta: Int) {
         mTopRow =
-                Math.min(0, Math.max(-(mEmulator.getScreen()
-                        .getActiveTranscriptRows()), mTopRow + mRows * delta));
-        invalidate();
+            0.coerceAtMost((-mEmulator!!.screen!!.activeTranscriptRows).coerceAtLeast(mTopRow + mRows * delta))
+        invalidate()
     }
 
-    /**
-     * Page the terminal view horizontally.
-     *
-     * @param deltaColumns the number of columns to scroll. Positive scrolls to
-     *        the right.
-     */
-    public void pageHorizontal(int deltaColumns) {
+    fun pageHorizontal(deltaColumns: Int) {
         mLeftColumn =
-                Math.max(0, Math.min(mLeftColumn + deltaColumns, mColumns
-                        - mVisibleColumns));
-        invalidate();
+            0.coerceAtLeast((mLeftColumn + deltaColumns).coerceAtMost(mColumns - mVisibleColumns))
+        invalidate()
     }
 
-    /**
-     * Sets the text size, which in turn sets the number of rows and columns.
-     *
-     * @param fontSize the new font size, in density-independent pixels.
-     */
-    public void setTextSize(int fontSize) {
-        mTextSize = (int) (fontSize * mDensity);
-        updateText();
+    fun setTextSize(fontSize: Int) {
+        mTextSize = (fontSize * mDensity).toInt()
+        updateText()
     }
 
-    /**
-     * Sets the IME mode ("cooked" or "raw").
-     *
-     * @param useCookedIME Whether the IME should be used in cooked mode.
-     */
-    public void setUseCookedIME(boolean useCookedIME) {
-        mUseCookedIme = useCookedIME;
+    fun setUseCookedIME(useCookedIME: Boolean) {
+        mUseCookedIme = useCookedIME
     }
 
-    /**
-     * Returns true if mouse events are being sent as escape sequences to the terminal.
-     */
-    public boolean isMouseTrackingActive() {
-        return mEmulator.getMouseTrackingMode() != 0 && mMouseTracking;
-    }
+    val isMouseTrackingActive: Boolean
+        get() = mEmulator!!.mouseTrackingMode != 0 && mMouseTracking
 
-    /**
-     * Send a single mouse event code to the terminal.
-     */
-    private void sendMouseEventCode(MotionEvent e, int button_code) {
-        int x = (int)(e.getX() / mCharacterWidth) + 1;
-        int y = (int)((e.getY()-mTopOfScreenMargin) / mCharacterHeight) + 1;
-        // Clip to screen, and clip to the limits of 8-bit data.
-        boolean out_of_bounds =
-            x < 1 || y < 1 ||
-            x > mColumns || y > mRows ||
-            x > 255-32 || y > 255-32;
-        //Log.d(TAG, "mouse button "+x+","+y+","+button_code+",oob="+out_of_bounds);
-        if(button_code < 0 || button_code > 255-32) {
-            Log.e(TAG, "mouse button_code out of range: "+button_code);
-            return;
+
+    private fun sendMouseEventCode(e: MotionEvent, button_code: Int) {
+        var x = (e.x / mCharacterWidth).toInt() + 1
+        var y = ((e.y - mTopOfScreenMargin) / mCharacterHeight).toInt() + 1
+        val out_of_bounds =
+            x < 1 || y < 1 || x > mColumns || y > mRows || x > 255 - 32 || y > 255 - 32
+        if (button_code < 0 || button_code > 255 - 32) {
+            Log.e(TAG, "mouse button_code out of range: $button_code")
+            return
         }
-        if(!out_of_bounds) {
-            byte[] data = {
-                '\033', '[', 'M',
-                (byte)(32 + button_code),
-                (byte)(32 + x),
-                (byte)(32 + y) };
-            mTermSession.write(data, 0, data.length);
+        if (!out_of_bounds) {
+            val data = byteArrayOf(
+                '\u001b'.code.toByte(), '['.code.toByte(), 'M'.code.toByte(),
+                (32 + button_code).toByte(),
+                (32 + x).toByte(),
+                (32 + y).toByte()
+            )
+            mTermSession!!.write(data, 0, data.size)
         }
     }
 
-    // Begin GestureDetector.OnGestureListener methods
-
-    public boolean onSingleTapUp(MotionEvent e) {
-        if (mExtGestureListener != null && mExtGestureListener.onSingleTapUp(e)) {
-            return true;
+    override fun onSingleTapUp(e: MotionEvent): Boolean {
+        if (mExtGestureListener?.onSingleTapUp(e) == true) {
+            return true
         }
 
-        if (isMouseTrackingActive()) {
-            sendMouseEventCode(e, 0); // BTN1 press
-            sendMouseEventCode(e, 3); // release
+        if (isMouseTrackingActive) {
+            sendMouseEventCode(e, 0)
+            sendMouseEventCode(e, 3)
         }
 
-        requestFocus();
-        return true;
+        requestFocus()
+        return true
     }
 
-    public void onLongPress(MotionEvent e) {
-        // XXX hook into external gesture listener
-        showContextMenu();
+    override fun onLongPress(e: MotionEvent) {
+        showContextMenu()
     }
 
-    public boolean onScroll(MotionEvent e1, MotionEvent e2,
-            float distanceX, float distanceY) {
-        if (mExtGestureListener != null && mExtGestureListener.onScroll(e1, e2, distanceX, distanceY)) {
-            return true;
+    override fun onScroll(
+        e1: MotionEvent?,
+        e2: MotionEvent,
+        distanceX: Float,
+        distanceY: Float
+    ): Boolean {
+        if (mExtGestureListener?.onScroll(e1, e2, distanceX, distanceY) == true) {
+            return true
         }
 
-        distanceY += mScrollRemainder;
-        int deltaRows = (int) (distanceY / mCharacterHeight);
-        mScrollRemainder = distanceY - deltaRows * mCharacterHeight;
+        var deltaY = distanceY + mScrollRemainder
+        var deltaRows = (deltaY / mCharacterHeight).toInt()
+        mScrollRemainder = deltaY - deltaRows * mCharacterHeight
 
-        if (isMouseTrackingActive()) {
-            // Send mouse wheel events to terminal.
-            for (; deltaRows>0; deltaRows--) {
-                sendMouseEventCode(e1, 65);
+        if (isMouseTrackingActive) {
+            e1?.let {
+                while (deltaRows > 0) {
+                    deltaRows--
+                    sendMouseEventCode(it, 65)
+                }
+                while (deltaRows < 0) {
+                    deltaRows++
+                    sendMouseEventCode(it, 64)
+                }
             }
-            for (; deltaRows<0; deltaRows++) {
-                sendMouseEventCode(e1, 64);
-            }
-            return true;
+            return true
         }
 
         mTopRow =
-            Math.min(0, Math.max(-(mEmulator.getScreen()
-                    .getActiveTranscriptRows()), mTopRow + deltaRows));
-        invalidate();
+            0.coerceAtMost((-mEmulator!!.screen!!.activeTranscriptRows).coerceAtLeast(mTopRow + deltaRows))
+        invalidate()
 
-        return true;
+        return true
     }
 
-    public void onSingleTapConfirmed(MotionEvent e) {
+    fun onSingleTapConfirmed(e: MotionEvent) {}
+
+    fun onJumpTapDown(e1: MotionEvent, e2: MotionEvent): Boolean {
+        mTopRow = 0
+        invalidate()
+        return true
     }
 
-    public boolean onJumpTapDown(MotionEvent e1, MotionEvent e2) {
-       // Scroll to bottom
-       mTopRow = 0;
-       invalidate();
-       return true;
+    fun onJumpTapUp(e1: MotionEvent, e2: MotionEvent): Boolean {
+        mTopRow = -mEmulator!!.screen!!.activeTranscriptRows
+        invalidate()
+        return true
     }
 
-    public boolean onJumpTapUp(MotionEvent e1, MotionEvent e2) {
-        // Scroll to top
-        mTopRow = -mEmulator.getScreen().getActiveTranscriptRows();
-        invalidate();
-        return true;
-    }
-
-    public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX,
-            float velocityY) {
-        if (mExtGestureListener != null && mExtGestureListener.onFling(e1, e2, velocityX, velocityY)) {
-            return true;
+    override fun onFling(
+        e1: MotionEvent?,
+        e2: MotionEvent,
+        velocityX: Float,
+        velocityY: Float
+    ): Boolean {
+        if (mExtGestureListener?.onFling(e1, e2, velocityX, velocityY) == true) {
+            return true
         }
 
-        mScrollRemainder = 0.0f;
-        if (isMouseTrackingActive()) {
-            mMouseTrackingFlingRunner.fling(e1, velocityX, velocityY);
+        mScrollRemainder = 0.0f
+        if (isMouseTrackingActive) {
+            mMouseTrackingFlingRunner.fling(e1, velocityX, velocityY)
         } else {
-            float SCALE = 0.25f;
-            mScroller.fling(0, mTopRow,
-                    -(int) (velocityX * SCALE), -(int) (velocityY * SCALE),
-                    0, 0,
-                    -mEmulator.getScreen().getActiveTranscriptRows(), 0);
-            // onScroll(e1, e2, 0.1f * velocityX, -0.1f * velocityY);
-            post(mFlingRunner);
+            val SCALE = 0.25f
+            mScroller!!.fling(
+                0, mTopRow,
+                -(velocityX * SCALE).toInt(), -(velocityY * SCALE).toInt(),
+                0, 0,
+                -mEmulator!!.screen!!.activeTranscriptRows, 0
+            )
+            post(mFlingRunner)
         }
-        return true;
+        return true
     }
 
-    public void onShowPress(MotionEvent e) {
-        if (mExtGestureListener != null) {
-            mExtGestureListener.onShowPress(e);
-        }
+    override fun onShowPress(e: MotionEvent) {
+        mExtGestureListener?.onShowPress(e)
     }
 
-    public boolean onDown(MotionEvent e) {
-        if (mExtGestureListener != null && mExtGestureListener.onDown(e)) {
-            return true;
+    override fun onDown(e: MotionEvent): Boolean {
+        if (mExtGestureListener?.onDown(e) == true) {
+            return true
         }
-        mScrollRemainder = 0.0f;
-        return true;
+        mScrollRemainder = 0.0f
+        return true
     }
 
-    // End GestureDetector.OnGestureListener methods
-
-    @Override
-    public boolean onTouchEvent(MotionEvent ev) {
-        if (mIsSelectingText) {
-            return onTouchEventWhileSelectingText(ev);
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        return if (mIsSelectingText) {
+            onTouchEventWhileSelectingText(ev)
         } else {
-            return mGestureDetector.onTouchEvent(ev);
+            mGestureDetector?.onTouchEvent(ev) == true
         }
     }
 
-    private boolean onTouchEventWhileSelectingText(MotionEvent ev) {
-        int action = ev.getAction();
-        int cx = (int)(ev.getX() / mCharacterWidth);
-        int cy = Math.max(0,
-                (int)((ev.getY() + SELECT_TEXT_OFFSET_Y * mScaledDensity)
-                        / mCharacterHeight) + mTopRow);
-        switch (action) {
-        case MotionEvent.ACTION_DOWN:
-            mSelXAnchor = cx;
-            mSelYAnchor = cy;
-            mSelX1 = cx;
-            mSelY1 = cy;
-            mSelX2 = mSelX1;
-            mSelY2 = mSelY1;
-            break;
-        case MotionEvent.ACTION_MOVE:
-        case MotionEvent.ACTION_UP:
-            int minx = Math.min(mSelXAnchor, cx);
-            int maxx = Math.max(mSelXAnchor, cx);
-            int miny = Math.min(mSelYAnchor, cy);
-            int maxy = Math.max(mSelYAnchor, cy);
-            mSelX1 = minx;
-            mSelY1 = miny;
-            mSelX2 = maxx;
-            mSelY2 = maxy;
-            if (action == MotionEvent.ACTION_UP) {
-                ClipboardManagerCompat clip = new ClipboardManagerCompat(getContext().getApplicationContext());
-                clip.setText(getSelectedText().trim());
-                toggleSelectingText();
+    private fun onTouchEventWhileSelectingText(ev: MotionEvent): Boolean {
+        val action = ev.action
+        val cx = (ev.x / mCharacterWidth).toInt()
+        val cy =
+            0.coerceAtLeast(((ev.y + SELECT_TEXT_OFFSET_Y * mScaledDensity) / mCharacterHeight).toInt() + mTopRow)
+        when (action) {
+            MotionEvent.ACTION_DOWN -> {
+                mSelXAnchor = cx
+                mSelYAnchor = cy
+                mSelX1 = cx
+                mSelY1 = cy
+                mSelX2 = mSelX1
+                mSelY2 = mSelY1
             }
-            invalidate();
-            break;
-        default:
-            toggleSelectingText();
-            invalidate();
-            break;
+
+            MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {
+                val minx = mSelXAnchor.coerceAtMost(cx)
+                val maxx = mSelXAnchor.coerceAtLeast(cx)
+                val miny = mSelYAnchor.coerceAtMost(cy)
+                val maxy = mSelYAnchor.coerceAtLeast(cy)
+                mSelX1 = minx
+                mSelY1 = miny
+                mSelX2 = maxx
+                mSelY2 = maxy
+                if (action == MotionEvent.ACTION_UP) {
+                    val clip = ClipboardManagerCompat(context.applicationContext)
+                    clip.text = getSelectedText()?.trim()
+                    toggleSelectingText()
+                }
+                invalidate()
+            }
+
+            else -> {
+                toggleSelectingText()
+                invalidate()
+            }
         }
-        return true;
+        return true
     }
 
-    /**
-     * Called when a key is pressed in the view.
-     *
-     * @param keyCode The keycode of the key which was pressed.
-     * @param event A {@link KeyEvent} describing the event.
-     * @return Whether the event was handled.
-     */
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (LOG_KEY_EVENTS) {
-            Log.w(TAG, "onKeyDown " + keyCode);
+            Log.w(TAG, "onKeyDown $keyCode")
         }
-        if (handleControlKey(keyCode, true)) {
-            return true;
-        } else if (handleFnKey(keyCode, true)) {
-            return true;
-        } else if (isSystemKey(keyCode, event)) {
-            if (! isInterceptedSystemKey(keyCode) ) {
-                // Don't intercept the system keys
-                return super.onKeyDown(keyCode, event);
+        return when {
+            handleControlKey(keyCode, true) -> true
+            handleFnKey(keyCode, true) -> true
+            isSystemKey(keyCode, event) && !isInterceptedSystemKey(keyCode) -> super.onKeyDown(
+                keyCode,
+                event
+            )
+
+            else -> {
+                try {
+                    val oldCombiningAccent = mKeyListener?.combiningAccent ?: 0
+                    val oldCursorMode = mKeyListener?.cursorMode ?: 0
+                    mKeyListener?.keyDown(
+                        keyCode, event, getKeypadApplicationMode(),
+                        TermKeyListener.isEventFromToggleDevice(event)
+                    )
+                    if (mKeyListener?.combiningAccent != oldCombiningAccent || mKeyListener?.cursorMode != oldCursorMode) {
+                        invalidate()
+                    }
+                } catch (e: IOException) {
+                }
+                true
             }
         }
-
-        // Translate the keyCode into an ASCII character.
-
-        try {
-            int oldCombiningAccent = mKeyListener.getCombiningAccent();
-            int oldCursorMode = mKeyListener.getCursorMode();
-            mKeyListener.keyDown(keyCode, event, getKeypadApplicationMode(),
-                    TermKeyListener.isEventFromToggleDevice(event));
-            if (mKeyListener.getCombiningAccent() != oldCombiningAccent
-                    || mKeyListener.getCursorMode() != oldCursorMode) {
-                invalidate();
-            }
-        } catch (IOException e) {
-            // Ignore I/O exceptions
-        }
-        return true;
     }
 
-    /** Do we want to intercept this system key? */
-    private boolean isInterceptedSystemKey(int keyCode) {
-        return keyCode == KeyEvent.KEYCODE_BACK && mBackKeySendsCharacter;
+    private fun isInterceptedSystemKey(keyCode: Int): Boolean {
+        return keyCode == KeyEvent.KEYCODE_BACK && mBackKeySendsCharacter
     }
 
-    /**
-     * Called when a key is released in the view.
-     *
-     * @param keyCode The keycode of the key which was released.
-     * @param event A {@link KeyEvent} describing the event.
-     * @return Whether the event was handled.
-     */
-    @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (LOG_KEY_EVENTS) {
-            Log.w(TAG, "onKeyUp " + keyCode);
+            Log.w(TAG, "onKeyUp $keyCode")
         }
-        if (handleControlKey(keyCode, false)) {
-            return true;
-        } else if (handleFnKey(keyCode, false)) {
-            return true;
-        } else if (isSystemKey(keyCode, event)) {
-            // Don't intercept the system keys
-            if ( ! isInterceptedSystemKey(keyCode) ) {
-                return super.onKeyUp(keyCode, event);
+        return when {
+            handleControlKey(keyCode, false) -> true
+            handleFnKey(keyCode, false) -> true
+            isSystemKey(
+                keyCode,
+                event
+            ) && !isInterceptedSystemKey(keyCode) -> super.onKeyUp(keyCode, event)
+
+            else -> {
+                mKeyListener?.keyUp(keyCode, event)
+                clearSpecialKeyStatus()
+                true
             }
         }
-
-        mKeyListener.keyUp(keyCode, event);
-        clearSpecialKeyStatus();
-        return true;
     }
 
-    @Override
-    public boolean onKeyPreIme(int keyCode, KeyEvent event) {
+    override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
         if (sTrapAltAndMeta) {
-            boolean altEsc = mKeyListener.getAltSendsEsc();
-            boolean altOn = (event.getMetaState() & KeyEvent.META_ALT_ON) != 0;
-            boolean metaOn = (event.getMetaState() & KeyEvent.META_META_ON) != 0;
-            boolean altPressed = (keyCode == KeyEvent.KEYCODE_ALT_LEFT)
-                    || (keyCode == KeyEvent.KEYCODE_ALT_RIGHT);
-            boolean altActive = mKeyListener.isAltActive();
+            val altEsc = mKeyListener?.altSendsEsc == true
+            val altOn = event.metaState and KeyEvent.META_ALT_ON != 0
+            val metaOn = event.metaState and KeyEvent.META_META_ON != 0
+            val altPressed =
+                keyCode == KeyEvent.KEYCODE_ALT_LEFT || keyCode == KeyEvent.KEYCODE_ALT_RIGHT
+            val altActive = mKeyListener?.isAltActive == true
             if (altEsc && (altOn || altPressed || altActive || metaOn)) {
-                if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                    return onKeyDown(keyCode, event);
+                return if (event.action == KeyEvent.ACTION_DOWN) {
+                    onKeyDown(keyCode, event)
                 } else {
-                    return onKeyUp(keyCode, event);
+                    onKeyUp(keyCode, event)
                 }
             }
         }
 
         if (handleHardwareControlKey(keyCode, event)) {
-            return true;
+            return true
         }
 
-        if (mKeyListener.isCtrlActive()) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                return onKeyDown(keyCode, event);
+        if (mKeyListener?.isCtrlActive == true) {
+            return if (event.action == KeyEvent.ACTION_DOWN) {
+                onKeyDown(keyCode, event)
             } else {
-                return onKeyUp(keyCode, event);
+                onKeyUp(keyCode, event)
             }
         }
 
-        return super.onKeyPreIme(keyCode, event);
+        return super.onKeyPreIme(keyCode, event)
     }
 
-    private boolean handleControlKey(int keyCode, boolean down) {
+    private fun handleControlKey(keyCode: Int, down: Boolean): Boolean {
         if (keyCode == mControlKeyCode) {
             if (LOG_KEY_EVENTS) {
-                Log.w(TAG, "handleControlKey " + keyCode);
+                Log.w(TAG, "handleControlKey $keyCode")
             }
-            mKeyListener.handleControlKey(down);
-            invalidate();
-            return true;
+            mKeyListener?.handleControlKey(down)
+            invalidate()
+            return true
         }
-        return false;
+        return false
     }
 
-    private boolean handleHardwareControlKey(int keyCode, KeyEvent event) {
-        if (keyCode == KeycodeConstants.KEYCODE_CTRL_LEFT ||
-            keyCode == KeycodeConstants.KEYCODE_CTRL_RIGHT) {
+    private fun handleHardwareControlKey(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeycodeConstants.KEYCODE_CTRL_LEFT || keyCode == KeycodeConstants.KEYCODE_CTRL_RIGHT) {
             if (LOG_KEY_EVENTS) {
-                Log.w(TAG, "handleHardwareControlKey " + keyCode);
+                Log.w(TAG, "handleHardwareControlKey $keyCode")
             }
-            boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
-            mKeyListener.handleHardwareControlKey(down);
-            invalidate();
-            return true;
+            val down = event.action == KeyEvent.ACTION_DOWN
+            mKeyListener?.handleHardwareControlKey(down)
+            invalidate()
+            return true
         }
-        return false;
+        return false
     }
 
-    private boolean handleFnKey(int keyCode, boolean down) {
+    private fun handleFnKey(keyCode: Int, down: Boolean): Boolean {
         if (keyCode == mFnKeyCode) {
             if (LOG_KEY_EVENTS) {
-                Log.w(TAG, "handleFnKey " + keyCode);
+                Log.w(TAG, "handleFnKey $keyCode")
             }
-            mKeyListener.handleFnKey(down);
-            invalidate();
-            return true;
+            mKeyListener?.handleFnKey(down)
+            invalidate()
+            return true
         }
-        return false;
+        return false
     }
 
-    private boolean isSystemKey(int keyCode, KeyEvent event) {
-        return event.isSystem();
+    private fun isSystemKey(keyCode: Int, event: KeyEvent): Boolean {
+        return event.isSystem
     }
 
-    private void clearSpecialKeyStatus() {
+    private fun clearSpecialKeyStatus() {
         if (mIsControlKeySent) {
-            mIsControlKeySent = false;
-            mKeyListener.handleControlKey(false);
-            invalidate();
+            mIsControlKeySent = false
+            mKeyListener?.handleControlKey(false)
+            invalidate()
         }
         if (mIsFnKeySent) {
-            mIsFnKeySent = false;
-            mKeyListener.handleFnKey(false);
-            invalidate();
+            mIsFnKeySent = false
+            mKeyListener?.handleFnKey(false)
+            invalidate()
         }
     }
 
-    private void updateText() {
-        ColorScheme scheme = mColorScheme;
-        if (mTextSize > 0) {
-            mTextRenderer = new PaintRenderer(mTextSize, scheme);
-        }
-        else {
-            mTextRenderer = new Bitmap4x8FontRenderer(getResources(), scheme);
+    private fun updateText() {
+        val scheme = mColorScheme
+        mTextRenderer = if (mTextSize > 0) {
+            PaintRenderer(mTextSize, scheme)
+        } else {
+            Bitmap4x8FontRenderer(resources, scheme)
         }
 
-        mForegroundPaint.setColor(scheme.getForeColor());
-        mBackgroundPaint.setColor(scheme.getBackColor());
-        mCharacterWidth = mTextRenderer.getCharacterWidth();
-        mCharacterHeight = mTextRenderer.getCharacterHeight();
+        mForegroundPaint.color = scheme.foreColor
+        mBackgroundPaint.color = scheme.backColor
+        mCharacterWidth = mTextRenderer!!.characterWidth
+        mCharacterHeight = mTextRenderer!!.characterHeight
 
-        updateSize(true);
+        updateSize(true)
     }
 
-    /**
-     * This is called during layout when the size of this view has changed. If
-     * you were just added to the view hierarchy, you're called with the old
-     * values of 0.
-     */
-    @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+    protected override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         if (mTermSession == null) {
-            // Not ready, defer until TermSession is attached
-            mDeferInit = true;
-            return;
+            mDeferInit = true
+            return
         }
 
         if (!mKnownSize) {
-            mKnownSize = true;
-            initialize();
+            mKnownSize = true
+            initialize()
         } else {
-            updateSize(false);
+            updateSize(false)
         }
     }
 
-    private void updateSize(int w, int h) {
-        mColumns = Math.max(1, (int) (((float) w) / mCharacterWidth));
-        mVisibleColumns = Math.max(1, (int) (((float) mVisibleWidth) / mCharacterWidth));
+    private fun updateSize(w: Int, h: Int) {
+        mColumns = (w / mCharacterWidth).coerceAtLeast(1f).toInt()
+        mVisibleColumns = (mVisibleWidth / mCharacterWidth).coerceAtLeast(1f).toInt()
 
-        mTopOfScreenMargin = mTextRenderer.getTopMargin();
-        mRows = Math.max(1, (h - mTopOfScreenMargin) / mCharacterHeight);
-        mVisibleRows = Math.max(1, (mVisibleHeight - mTopOfScreenMargin) / mCharacterHeight);
-        mTermSession.updateSize(mColumns, mRows);
+        mTopOfScreenMargin = mTextRenderer!!.topMargin
+        mRows = ((h - mTopOfScreenMargin) / mCharacterHeight).coerceAtLeast(1)
+        mVisibleRows = ((mVisibleHeight - mTopOfScreenMargin) / mCharacterHeight).coerceAtLeast(1)
+        mTermSession?.updateSize(mColumns, mRows)
 
-        // Reset our paging:
-        mTopRow = 0;
-        mLeftColumn = 0;
+        mTopRow = 0
+        mLeftColumn = 0
 
-        invalidate();
+        invalidate()
     }
 
-    /**
-     * Update the view's idea of its size.
-     *
-     * @param force Whether a size adjustment should be performed even if the
-     *              view's size has not changed.
-     */
-    public void updateSize(boolean force) {
-        //Need to clear saved links on each display refresh
-        mLinkLayer.clear();
+    fun updateSize(force: Boolean) {
+        mLinkLayer.clear()
         if (mKnownSize) {
-            int w = getWidth();
-            int h = getHeight();
-            // Log.w("Term", "(" + w + ", " + h + ")");
+            val w = width
+            val h = height
             if (force || w != mVisibleWidth || h != mVisibleHeight) {
-                mVisibleWidth = w;
-                mVisibleHeight = h;
-                updateSize(mVisibleWidth, mVisibleHeight);
+                mVisibleWidth = w
+                mVisibleHeight = h
+                updateSize(mVisibleWidth, mVisibleHeight)
             }
         }
     }
 
-    /**
-     * Draw the view to the provided {@link Canvas}.
-     *
-     * @param canvas The {@link Canvas} to draw the view to.
-     */
-    @Override
-    protected void onDraw(Canvas canvas) {
-        updateSize(false);
+    protected override fun onDraw(canvas: Canvas) {
+        updateSize(false)
 
         if (mEmulator == null) {
-            // Not ready yet
-            return;
+            return
         }
 
-        int w = getWidth();
-        int h = getHeight();
+        val w = width
+        val h = height
 
-        boolean reverseVideo = mEmulator.getReverseVideo();
-        mTextRenderer.setReverseVideo(reverseVideo);
+        val reverseVideo = mEmulator!!.reverseVideo
+        mTextRenderer?.setReverseVideo(reverseVideo)
 
-        Paint backgroundPaint =
-                reverseVideo ? mForegroundPaint : mBackgroundPaint;
-        canvas.drawRect(0, 0, w, h, backgroundPaint);
-        float x = -mLeftColumn * mCharacterWidth;
-        float y = mCharacterHeight + mTopOfScreenMargin;
-        int endLine = mTopRow + mRows;
-        int cx = mEmulator.getCursorCol();
-        int cy = mEmulator.getCursorRow();
-        boolean cursorVisible = mCursorVisible && mEmulator.getShowCursor();
-        String effectiveImeBuffer = mImeBuffer;
-        int combiningAccent = mKeyListener.getCombiningAccent();
+        val backgroundPaint = if (reverseVideo) mForegroundPaint else mBackgroundPaint
+        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), backgroundPaint)
+        var x = -mLeftColumn * mCharacterWidth
+        var y = mCharacterHeight + mTopOfScreenMargin
+        val endLine = mTopRow + mRows
+        val cx = mEmulator!!.cursorCol
+        val cy = mEmulator!!.cursorRow
+        val cursorVisible = mCursorVisible && mEmulator!!.showCursor
+        var effectiveImeBuffer = mImeBuffer
+        val combiningAccent = mKeyListener?.combiningAccent ?: 0
         if (combiningAccent != 0) {
-            effectiveImeBuffer += String.valueOf((char) combiningAccent);
+            effectiveImeBuffer += combiningAccent.toChar()
         }
-        int cursorStyle = mKeyListener.getCursorMode();
+        val cursorStyle = mKeyListener?.cursorMode ?: 0
 
-        int linkLinesToSkip = 0; //for multi-line links
+        var linkLinesToSkip = 0
 
-        for (int i = mTopRow; i < endLine; i++) {
-            int cursorX = -1;
+        for (i in mTopRow until endLine) {
+            var cursorX = -1
             if (i == cy && cursorVisible) {
-                cursorX = cx;
+                cursorX = cx
             }
-            int selx1 = -1;
-            int selx2 = -1;
-            if ( i >= mSelY1 && i <= mSelY2 ) {
-                if ( i == mSelY1 ) {
-                    selx1 = mSelX1;
+            var selx1 = -1
+            var selx2 = -1
+            if (i in mSelY1..mSelY2) {
+                if (i == mSelY1) {
+                    selx1 = mSelX1
                 }
-                if ( i == mSelY2 ) {
-                    selx2 = mSelX2;
-                } else {
-                    selx2 = mColumns;
-                }
+                selx2 = if (i == mSelY2) mSelX2 else mColumns
             }
-            mEmulator.getScreen().drawText(i, canvas, x, y, mTextRenderer, cursorX, selx1, selx2, effectiveImeBuffer, cursorStyle);
-            y += mCharacterHeight;
-            //if no lines to skip, create links for the line being drawn
-            if(linkLinesToSkip == 0)
-                linkLinesToSkip = createLinks(i);
-
-            //createLinks always returns at least 1
-            --linkLinesToSkip;
+            mEmulator!!.screen!!.drawText(
+                i, canvas, x,
+                y.toFloat(), mTextRenderer!!, cursorX, selx1, selx2, effectiveImeBuffer, cursorStyle
+            )
+            y += mCharacterHeight
+            if (linkLinesToSkip == 0) {
+                linkLinesToSkip = createLinks(i)
+            }
+            linkLinesToSkip--
         }
     }
 
-    private void ensureCursorVisible() {
-        mTopRow = 0;
+    private fun ensureCursorVisible() {
+        mTopRow = 0
         if (mVisibleColumns > 0) {
-            int cx = mEmulator.getCursorCol();
-            int visibleCursorX = mEmulator.getCursorCol() - mLeftColumn;
-            if (visibleCursorX < 0) {
-                mLeftColumn = cx;
-            } else if (visibleCursorX >= mVisibleColumns) {
-                mLeftColumn = (cx - mVisibleColumns) + 1;
+            val cx = mEmulator!!.cursorCol
+            val visibleCursorX = mEmulator!!.cursorCol - mLeftColumn
+            when {
+                visibleCursorX < 0 -> mLeftColumn = cx
+                visibleCursorX >= mVisibleColumns -> mLeftColumn = cx - mVisibleColumns + 1
             }
         }
     }
 
-    /**
-     * Toggle text selection mode in the view.
-     */
-    public void toggleSelectingText() {
-        mIsSelectingText = ! mIsSelectingText;
-        setVerticalScrollBarEnabled( ! mIsSelectingText );
-        if ( ! mIsSelectingText ) {
-            mSelX1 = -1;
-            mSelY1 = -1;
-            mSelX2 = -1;
-            mSelY2 = -1;
+    fun toggleSelectingText() {
+        mIsSelectingText = !mIsSelectingText
+        isVerticalScrollBarEnabled = !mIsSelectingText
+        if (!mIsSelectingText) {
+            mSelX1 = -1
+            mSelY1 = -1
+            mSelX2 = -1
+            mSelY2 = -1
         }
     }
 
-    /**
-     * Whether the view is currently in text selection mode.
-     */
-    public boolean getSelectingText() {
-        return mIsSelectingText;
+    fun getSelectingText(): Boolean {
+        return mIsSelectingText
     }
 
-    /**
-     * Get selected text.
-     *
-     * @return A {@link String} with the selected text.
-     */
-    public String getSelectedText() {
-        return mEmulator.getSelectedText(mSelX1, mSelY1, mSelX2, mSelY2);
+    fun getSelectedText(): String? {
+        return mEmulator!!.getSelectedText(mSelX1, mSelY1, mSelX2, mSelY2)
     }
 
-    /**
-     * Send a Ctrl key event to the terminal.
-     */
-    public void sendControlKey() {
-        mIsControlKeySent = true;
-        mKeyListener.handleControlKey(true);
-        invalidate();
+    fun sendControlKey() {
+        mIsControlKeySent = true
+        mKeyListener?.handleControlKey(true)
+        invalidate()
     }
 
-    /**
-     * Send an Fn key event to the terminal.  The Fn modifier key can be used to
-     * generate various special characters and escape codes.
-     */
-    public void sendFnKey() {
-        mIsFnKeySent = true;
-        mKeyListener.handleFnKey(true);
-        invalidate();
+    fun sendFnKey() {
+        mIsFnKeySent = true
+        mKeyListener?.handleFnKey(true)
+        invalidate()
     }
 
-    /**
-     * Set the key code to be sent when the Back key is pressed.
-     */
-    public void setBackKeyCharacter(int keyCode) {
-        mKeyListener.setBackKeyCharacter(keyCode);
-        mBackKeySendsCharacter = (keyCode != 0);
+    fun setBackKeyCharacter(keyCode: Int) {
+        mKeyListener?.setBackKeyCharacter(keyCode)
+        mBackKeySendsCharacter = keyCode != 0
     }
 
-    /**
-     * Set whether to prepend the ESC keycode to the character when when pressing
-     * the ALT Key.
-     * @param flag
-     */
-    public void setAltSendsEsc(boolean flag) {
-        mKeyListener.setAltSendsEsc(flag);
+    fun setAltSendsEsc(flag: Boolean) {
+        mKeyListener?.altSendsEsc = flag
     }
 
-    /**
-     * Set the keycode corresponding to the Ctrl key.
-     */
-    public void setControlKeyCode(int keyCode) {
-        mControlKeyCode = keyCode;
+    fun setControlKeyCode(keyCode: Int) {
+        mControlKeyCode = keyCode
     }
 
-    /**
-     * Set the keycode corresponding to the Fn key.
-     */
-    public void setFnKeyCode(int keyCode) {
-        mFnKeyCode = keyCode;
+    fun setFnKeyCode(keyCode: Int) {
+        mFnKeyCode = keyCode
     }
 
-    public void setTermType(String termType) {
-         mKeyListener.setTermType(termType);
+    fun setTermType(termType: String?) {
+        mKeyListener?.setTermType(termType)
     }
 
-    /**
-     * Set whether mouse events should be sent to the terminal as escape codes.
-     */
-    public void setMouseTracking(boolean flag) {
-        mMouseTracking = flag;
+    fun setMouseTracking(flag: Boolean) {
+        mMouseTracking = flag
     }
 
+    fun getURLat(x: Float, y: Float): String? {
+        val w = width.toFloat()
+        val h = height.toFloat()
 
-    /**
-     * Get the URL for the link displayed at the specified screen coordinates.
-     *
-     * @param x The x coordinate being queried (from 0 to screen width)
-     * @param y The y coordinate being queried (from 0 to screen height)
-     * @return The URL for the link at the specified screen coordinates, or
-     *         null if no link exists there.
-     */
-    public String getURLat(float x, float y)
-    {
-        float w = getWidth();
-        float h = getHeight();
+        if (w == 0f || h == 0f) {
+            return null
+        }
 
-        //Check for division by zero
-        //If width or height is zero, there are probably no links around, so return null.
-        if(w == 0 || h == 0)
-            return null;
+        val x_pos = x / w
+        val y_pos = y / h
 
-        //Get fraction of total screen
-        float x_pos = x / w;
-        float y_pos = y / h;
+        val row = (y_pos * mRows).toInt()
+        val col = (x_pos * mColumns).toInt()
 
-        //Convert to integer row/column index
-        int row = (int)Math.floor(y_pos * mRows);
-        int col = (int)Math.floor(x_pos * mColumns);
+        val linkRow = mLinkLayer[row]
+        val link = linkRow?.get(col)
 
-        //Grab row from link layer
-        URLSpan [] linkRow = mLinkLayer.get(row);
-        URLSpan link;
-
-        //If row exists, and link exists at column, return it
-        if(linkRow != null && (link = linkRow[col]) != null)
-            return link.getURL();
-        else
-            return null;
+        return link?.url
     }
+
+    private fun createLinks(row: Int): Int {
+        val transcriptScreen = mEmulator?.screen ?: return 1
+        val line = transcriptScreen.getScriptLine(row) ?: return 1
+        var lineCount = 1
+
+        var lineLen: Int
+        val textIsBasic = transcriptScreen.isBasicLine(row)
+        if (textIsBasic) {
+            lineLen = line.size
+        } else {
+            lineLen = 0
+            while (line[lineLen].code != 0) {
+                lineLen++
+            }
+        }
+
+        val textToLinkify = SpannableStringBuilder(String(line, 0, lineLen))
+
+        var lineWrap = transcriptScreen.getScriptLineWrap(row)
+
+        while (lineWrap) {
+            val nextRow = row + lineCount
+            val nextLine = transcriptScreen.getScriptLine(nextRow) ?: break
+
+            val lineIsBasic = transcriptScreen.isBasicLine(nextRow)
+            lineLen = if (lineIsBasic) {
+                nextLine.size
+            } else {
+                var len = 0
+                while (nextLine[len].code != 0) {
+                    len++
+                }
+                len
+            }
+
+            textToLinkify.append(String(nextLine, 0, lineLen))
+
+            lineWrap = transcriptScreen.getScriptLineWrap(nextRow)
+            lineCount++
+        }
+
+        Linkify.addLinks(
+            textToLinkify,
+            Pattern.compile(Patterns.WEB_URL),
+            null,
+            sHttpMatchFilter,
+            null
+        )
+        val urls = textToLinkify.getSpans(0, textToLinkify.length, URLSpan::class.java)
+        if (urls.isNotEmpty()) {
+            val columns = mColumns
+
+            val screenRow = row - mTopRow
+
+            val linkRows = Array(lineCount) { arrayOfNulls<URLSpan>(columns) }
+            for (i in 0 until lineCount) {
+                Arrays.fill(linkRows[i], null)
+            }
+
+            for (url in urls) {
+                val spanStart = textToLinkify.getSpanStart(url)
+                val spanEnd = textToLinkify.getSpanEnd(url)
+
+                val (startRow, startCol, endRow, endCol) = if (textIsBasic) {
+                    val spanLastPos = spanEnd - 1
+                    val startRow = spanStart / mColumns
+                    val startCol = spanStart % mColumns
+                    val endRow = spanLastPos / mColumns
+                    val endCol = spanLastPos % mColumns
+                    Quad(startRow, startCol, endRow, endCol)
+                } else {
+                    var startRow = 0
+                    var startCol = 0
+                    var i = 0
+                    while (i < spanStart) {
+                        val c = textToLinkify[i]
+                        startCol += if (Character.isHighSurrogate(c)) {
+                            UnicodeTranscript.charWidth(c, textToLinkify[++i])
+                        } else {
+                            UnicodeTranscript.charWidth(c.code)
+                        }
+                        if (startCol >= columns) {
+                            startRow++
+                            startCol %= columns
+                        }
+                    }
+
+                    var endRow = startRow
+                    var endCol = startCol
+                    i = spanStart
+                    while (i < spanEnd) {
+                        val c = textToLinkify[i]
+                        endCol += if (Character.isHighSurrogate(c)) {
+                            UnicodeTranscript.charWidth(c, textToLinkify[++i])
+                        } else {
+                            UnicodeTranscript.charWidth(c.code)
+                        }
+                        if (endCol >= columns) {
+                            endRow++
+                            endCol %= columns
+                        }
+                        i++
+                    }
+                    Quad(startRow, startCol, endRow, endCol)
+                }
+
+                for (i in startRow..endRow) {
+                    val runStart = if (i == startRow) startCol else 0
+                    val runEnd = if (i == endRow) endCol else columns - 1
+
+                    Arrays.fill(linkRows[i], runStart, runEnd + 1, url)
+                }
+            }
+
+            for (i in 0 until lineCount) {
+                mLinkLayer[screenRow + i] = linkRows[i]
+            }
+        }
+        return lineCount
+    }
+
+    private data class Quad(val first: Int, val second: Int, val third: Int, val fourth: Int)
 }

@@ -13,53 +13,52 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package jackpal.androidterm.emulatorview;
+package jackpal.androidterm.emulatorview
 
 /**
  * Debug settings.
  */
-
-class EmulatorDebug {
+object EmulatorDebug {
     /**
      * Set to true to add debugging code and logging.
      */
-    public static final boolean DEBUG = false;
+    const val DEBUG: Boolean = false
 
     /**
      * Set to true to log IME calls.
      */
-    public static final boolean LOG_IME = DEBUG & false;
+    const val LOG_IME: Boolean = DEBUG and false
 
     /**
      * Set to true to log each character received from the remote process to the
      * android log, which makes it easier to debug some kinds of problems with
      * emulating escape sequences and control codes.
      */
-    public static final boolean LOG_CHARACTERS_FLAG = DEBUG & false;
+    const val LOG_CHARACTERS_FLAG: Boolean = DEBUG and false
 
     /**
      * Set to true to log unknown escape sequences.
      */
-    public static final boolean LOG_UNKNOWN_ESCAPE_SEQUENCES = DEBUG & false;
+    const val LOG_UNKNOWN_ESCAPE_SEQUENCES: Boolean = DEBUG and false
 
     /**
      * The tag we use when logging, so that our messages can be distinguished
      * from other messages in the log. Public because it's used by several
      * classes.
      */
-    public static final String LOG_TAG = "EmulatorView";
+    const val LOG_TAG: String = "EmulatorView"
 
-    public static String bytesToString(byte[] data, int base, int length) {
-        StringBuilder buf = new StringBuilder();
-        for (int i = 0; i < length; i++) {
-            byte b = data[base + i];
+    @JvmStatic
+    fun bytesToString(data: ByteArray, base: Int, length: Int): String {
+        val buf = StringBuilder()
+        for (i in 0..<length) {
+            val b = data[base + i]
             if (b < 32 || b > 126) {
-                buf.append(String.format("\\x%02x", b));
+                buf.append(String.format("\\x%02x", b))
             } else {
-                buf.append((char)b);
+                buf.append(Char(b.toUShort()))
             }
         }
-        return buf.toString();
+        return buf.toString()
     }
 }

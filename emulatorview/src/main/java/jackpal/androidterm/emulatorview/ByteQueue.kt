@@ -13,63 +13,55 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package jackpal.androidterm.emulatorview
 
-package jackpal.androidterm.emulatorview;
+import kotlin.math.min
 
 /**
  * A multi-thread-safe produce-consumer byte array.
  * Only allows one producer and one consumer.
  */
-
-class ByteQueue {
-    public ByteQueue(int size) {
-        mBuffer = new byte[size];
-    }
-
-    public int getBytesAvailable() {
-        synchronized(this) {
-            return mStoredBytes;
+internal class ByteQueue(size: Int) {
+    val bytesAvailable: Int
+        get() {
+            synchronized(this) {
+                return mStoredBytes
+            }
         }
-    }
 
-    public int read(byte[] buffer, int offset, int length)
-        throws InterruptedException {
-        if (length + offset > buffer.length) {
-            throw
-                new IllegalArgumentException("length + offset > buffer.length");
-        }
-        if (length < 0) {
-            throw
-            new IllegalArgumentException("length < 0");
-
-        }
+    @Throws(InterruptedException::class)
+    fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        var offset = offset
+        var length = length
+        require(length + offset <= buffer.size) { "length + offset > buffer.length" }
+        require(length >= 0) { "length < 0" }
         if (length == 0) {
-            return 0;
+            return 0
         }
         synchronized(this) {
             while (mStoredBytes == 0) {
-                wait();
+                (this as Object).wait()
             }
-            int totalRead = 0;
-            int bufferLength = mBuffer.length;
-            boolean wasFull = bufferLength == mStoredBytes;
+            var totalRead = 0
+            val bufferLength = mBuffer.size
+            val wasFull = bufferLength == mStoredBytes
             while (length > 0 && mStoredBytes > 0) {
-                int oneRun = Math.min(bufferLength - mHead, mStoredBytes);
-                int bytesToCopy = Math.min(length, oneRun);
-                System.arraycopy(mBuffer, mHead, buffer, offset, bytesToCopy);
-                mHead += bytesToCopy;
+                val oneRun = min((bufferLength - mHead).toDouble(), mStoredBytes.toDouble()).toInt()
+                val bytesToCopy = min(length.toDouble(), oneRun.toDouble()).toInt()
+                System.arraycopy(mBuffer, mHead, buffer, offset, bytesToCopy)
+                mHead += bytesToCopy
                 if (mHead >= bufferLength) {
-                    mHead = 0;
+                    mHead = 0
                 }
-                mStoredBytes -= bytesToCopy;
-                length -= bytesToCopy;
-                offset += bytesToCopy;
-                totalRead += bytesToCopy;
+                mStoredBytes -= bytesToCopy
+                length -= bytesToCopy
+                offset += bytesToCopy
+                totalRead += bytesToCopy
             }
             if (wasFull) {
-                notify();
+                (this as Object).notify()
             }
-            return totalRead;
+            return totalRead
         }
     }
 
@@ -79,46 +71,40 @@ class ByteQueue {
      * it is the caller's responsibility to check whether all of the data
      * was written and repeat the call to write() if necessary.
      */
-    public int write(byte[] buffer, int offset, int length)
-    throws InterruptedException {
-        if (length + offset > buffer.length) {
-            throw
-                new IllegalArgumentException("length + offset > buffer.length");
-        }
-        if (length < 0) {
-            throw
-            new IllegalArgumentException("length < 0");
-
-        }
+    @Throws(InterruptedException::class)
+    fun write(buffer: ByteArray, offset: Int, length: Int): Int {
+        var offset = offset
+        require(length + offset <= buffer.size) { "length + offset > buffer.length" }
+        require(length >= 0) { "length < 0" }
         if (length == 0) {
-            return 0;
+            return 0
         }
         synchronized(this) {
-            int bufferLength = mBuffer.length;
-            boolean wasEmpty = mStoredBytes == 0;
-            while(bufferLength == mStoredBytes) {
-                wait();
+            val bufferLength = mBuffer.size
+            val wasEmpty = mStoredBytes == 0
+            while (bufferLength == mStoredBytes) {
+                (this as Object).wait()
             }
-            int tail = mHead + mStoredBytes;
-            int oneRun;
+            var tail = mHead + mStoredBytes
+            val oneRun: Int
             if (tail >= bufferLength) {
-                tail = tail - bufferLength;
-                oneRun = mHead - tail;
+                tail = tail - bufferLength
+                oneRun = mHead - tail
             } else {
-                oneRun = bufferLength - tail;
+                oneRun = bufferLength - tail
             }
-            int bytesToCopy = Math.min(oneRun, length);
-            System.arraycopy(buffer, offset, mBuffer, tail, bytesToCopy);
-            offset += bytesToCopy;
-            mStoredBytes += bytesToCopy;
+            val bytesToCopy = min(oneRun.toDouble(), length.toDouble()).toInt()
+            System.arraycopy(buffer, offset, mBuffer, tail, bytesToCopy)
+            offset += bytesToCopy
+            mStoredBytes += bytesToCopy
             if (wasEmpty) {
-                notify();
+                (this as Object).notify()
             }
-            return bytesToCopy;
+            return bytesToCopy
         }
     }
 
-    private byte[] mBuffer;
-    private int mHead;
-    private int mStoredBytes;
+    private val mBuffer: ByteArray = ByteArray(size)
+    private var mHead = 0
+    private var mStoredBytes = 0
 }

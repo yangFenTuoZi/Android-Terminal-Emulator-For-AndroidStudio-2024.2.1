@@ -1,17 +1,9 @@
-package jackpal.androidterm;
+package jackpal.androidterm
 
-import android.os.Looper;
-import android.os.ParcelFileDescriptor;
-
-import androidx.annotation.NonNull;
-
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
+import android.os.Looper
+import android.os.ParcelFileDescriptor
+import java.io.IOException
+import java.util.Hashtable
 
 /**
  * Utility methods for creating and managing a subprocess. This class differs from
@@ -21,44 +13,54 @@ import java.util.Map;
  * they start in slightly more human-like way. For example, a pty owner can send ^C (aka SIGINT)
  * to attached shell, even if said shell runs under a different user ID.
  */
-public class TermExec {
-    // Warning: bump the library revision, when an incompatible change happens
-    static {
-        System.loadLibrary("term_exec");
+class TermExec {
+    companion object {
+        // Warning: bump the library revision, when an incompatible change happens
+        init {
+            System.loadLibrary("term_exec")
+        }
+        const val SERVICE_ACTION_V1 = "jackpal.androidterm.action.START_TERM.v1"
+        @JvmStatic
+        external fun waitFor(processId: Int): Int
+        @JvmStatic
+        external fun sendSignal(processId: Int, signal: Int)
+        @JvmStatic
+        @Throws(IOException::class)
+        fun createSubprocess(
+            masterFd: ParcelFileDescriptor,
+            cmd: String,
+            args: Array<String>,
+            envVars: Array<String>
+        ): Int {
+            val integerFd = FdHelperHoneycomb.getFd(masterFd)
+            return createSubprocessInternal(cmd, args, envVars, integerFd)
+        }
+        @JvmStatic
+        private external fun createSubprocessInternal(
+            cmd: String,
+            args: Array<String>,
+            envVars: Array<String>,
+            masterFd: Int
+        ): Int
     }
 
-    public static final String SERVICE_ACTION_V1 = "jackpal.androidterm.action.START_TERM.v1";
+    private val command: MutableList<String>
+    private val environment: MutableMap<String, String>
 
-    private static Field descriptorField;
-
-    private final List<String> command;
-    private final Map<String, String> environment;
-
-    public TermExec(@NonNull String... command) {
-        this(new ArrayList<>(Arrays.asList(command)));
+    constructor(vararg command: String) : this(command.toList())
+    constructor(command: List<String>) {
+        this.command = command.toMutableList()
+        this.environment = Hashtable(System.getenv())
     }
 
-    public TermExec(@NonNull List<String> command) {
-        this.command = command;
-        this.environment = new Hashtable<>(System.getenv());
-    }
+    fun command(): List<String> = command
+    fun environment(): Map<String, String> = environment
 
-    public @NonNull List<String> command() {
-        return command;
-    }
-
-    public @NonNull Map<String, String> environment() {
-        return environment;
-    }
-
-    public @NonNull TermExec command(@NonNull String... command) {
-        return command(new ArrayList<>(Arrays.asList(command)));
-    }
-
-    public @NonNull TermExec command(List<String> command) {
-        command.clear();
-        command.addAll(command);
-        return this;
+    fun command(vararg command: String): TermExec = command(command.toList())
+    fun command(command: List<String>): TermExec {
+        this.command.clear()
+        this.command.addAll(command)
+        return this
     }
 
     /**
@@ -71,53 +73,25 @@ public class TermExec {
      *
      * @return the PID of the started process.
      */
-    public int start(@NonNull ParcelFileDescriptor ptmxFd) throws IOException {
+    @Throws(IOException::class)
+    fun start(ptmxFd: ParcelFileDescriptor): Int {
         if (Looper.getMainLooper() == Looper.myLooper())
-            throw new IllegalStateException("This method must not be called from the main thread!");
-
+            throw IllegalStateException("This method must not be called from the main thread!")
         if (command.isEmpty())
-            throw new IllegalStateException("Empty command!");
-
-        final String cmd = command.remove(0);
-        final String[] cmdArray = command.toArray(new String[0]);
-        final String[] envArray = new String[environment.size()];
-        int i = 0;
-        for (Map.Entry<String, String> entry : environment.entrySet()) {
-            envArray[i++] = entry.getKey() + "=" + entry.getValue();
+            throw IllegalStateException("Empty command!")
+        val cmd = command.removeAt(0)
+        val cmdArray = command.toTypedArray()
+        val envArray = Array(environment.size) { "" }
+        var i = 0
+        for ((key, value) in environment) {
+            envArray[i++] = "$key=$value"
         }
-
-        return createSubprocess(ptmxFd, cmd, cmdArray, envArray);
+        return createSubprocess(ptmxFd, cmd, cmdArray, envArray)
     }
-
-    /**
-     * Causes the calling thread to wait for the process associated with the
-     * receiver to finish executing.
-     *
-     * @return The exit value of the Process being waited on
-     */
-    public static native int waitFor(int processId);
-
-    /**
-     * Send signal via the "kill" system call. Android {@link android.os.Process#sendSignal} does not
-     * allow negative numbers (denoting process groups) to be used.
-     */
-    public static native void sendSignal(int processId, int signal);
-
-    static int createSubprocess(ParcelFileDescriptor masterFd, String cmd, String[] args, String[] envVars) throws IOException
-    {
-        final int integerFd;
-
-        integerFd = FdHelperHoneycomb.getFd(masterFd);
-
-        return createSubprocessInternal(cmd, args, envVars, integerFd);
-    }
-
-    private static native int createSubprocessInternal(String cmd, String[] args, String[] envVars, int masterFd);
 }
 
 // prevents runtime errors on old API versions with ruthless verifier
-class FdHelperHoneycomb {
-    static int getFd(ParcelFileDescriptor descriptor) {
-        return descriptor.getFd();
-    }
+object FdHelperHoneycomb {
+    fun getFd(descriptor: ParcelFileDescriptor): Int = descriptor.fd
 }
+

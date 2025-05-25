@@ -13,133 +13,128 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package jackpal.androidterm.emulatorview
 
-package jackpal.androidterm.emulatorview;
+import kotlin.math.abs
 
 /**
- * A class describing a color scheme for an {@link EmulatorView}.
- * <p>
- * <code>EmulatorView</code> supports changing its default foreground,
- * background, and cursor colors.  Passing a <code>ColorScheme</code> to
- * {@link EmulatorView#setColorScheme setColorScheme} will cause the
- * <code>EmulatorView</code> to use the specified colors as its defaults.
- * <p>
+ * A class describing a color scheme for an [EmulatorView].
+ *
+ *
+ * `EmulatorView` supports changing its default foreground,
+ * background, and cursor colors.  Passing a `ColorScheme` to
+ * [setColorScheme][EmulatorView.setColorScheme] will cause the
+ * `EmulatorView` to use the specified colors as its defaults.
+ *
+ *
  * Cursor colors can be omitted when specifying a color scheme; if no cursor
- * colors are specified, <code>ColorScheme</code> will automatically select
+ * colors are specified, `ColorScheme` will automatically select
  * suitable cursor colors for you.
  *
- * @see EmulatorView#setColorScheme
+ * @see EmulatorView.setColorScheme
  */
+class ColorScheme {
+    /**
+     * @return This `ColorScheme`'s foreground color as an ARGB
+     * hex value.
+     */
+    val foreColor: Int
 
-public class ColorScheme {
-    private int foreColor;
-    private int backColor;
-    private int cursorForeColor;
-    private int cursorBackColor;
-    final private static int sDefaultCursorBackColor = 0xff808080;
+    /**
+     * @return This `ColorScheme`'s background color as an ARGB
+     * hex value.
+     */
+    val backColor: Int
 
-    private void setDefaultCursorColors() {
-        cursorBackColor = sDefaultCursorBackColor;
+    /**
+     * @return This `ColorScheme`'s cursor foreground color as an ARGB
+     * hex value.
+     */
+    var cursorForeColor: Int = 0
+        private set
+
+    /**
+     * @return This `ColorScheme`'s cursor background color as an ARGB
+     * hex value.
+     */
+    var cursorBackColor: Int = 0
+        private set
+
+    private fun setDefaultCursorColors() {
+        cursorBackColor = sDefaultCursorBackColor
         // Use the foreColor unless the foreColor is too similar to the cursorBackColor
-        int foreDistance = distance(foreColor, cursorBackColor);
-        int backDistance = distance(backColor, cursorBackColor);
-        if (foreDistance * 2 >= backDistance) {
-            cursorForeColor = foreColor;
+        val foreDistance = distance(foreColor, cursorBackColor)
+        val backDistance = distance(backColor, cursorBackColor)
+        cursorForeColor = if (foreDistance * 2 >= backDistance) {
+            foreColor
         } else {
-            cursorForeColor = backColor;
+            backColor
         }
     }
 
-    private static int distance(int a, int b) {
-        return channelDistance(a, b, 0) * 3 + channelDistance(a, b, 1) * 5
-                + channelDistance(a, b, 2);
-    }
-
-    private static int channelDistance(int a, int b, int channel) {
-        return Math.abs(getChannel(a, channel) - getChannel(b, channel));
-    }
-
-    private static int getChannel(int color, int channel) {
-        return 0xff & (color >> ((2 - channel) * 8));
-    }
-
     /**
-     * Creates a <code>ColorScheme</code> object.
+     * Creates a `ColorScheme` object.
      *
      * @param foreColor The foreground color as an ARGB hex value.
      * @param backColor The background color as an ARGB hex value.
      */
-    public ColorScheme(int foreColor, int backColor) {
-        this.foreColor = foreColor;
-        this.backColor = backColor;
-        setDefaultCursorColors();
+    constructor(foreColor: Int, backColor: Int) {
+        this.foreColor = foreColor
+        this.backColor = backColor
+        setDefaultCursorColors()
     }
 
     /**
-     * Creates a <code>ColorScheme</code> object.
+     * Creates a `ColorScheme` object.
      *
      * @param foreColor The foreground color as an ARGB hex value.
      * @param backColor The background color as an ARGB hex value.
      * @param cursorForeColor The cursor foreground color as an ARGB hex value.
      * @param cursorBackColor The cursor foreground color as an ARGB hex value.
      */
-    public ColorScheme(int foreColor, int backColor, int cursorForeColor, int cursorBackColor) {
-        this.foreColor = foreColor;
-        this.backColor = backColor;
-        this.cursorForeColor = cursorForeColor;
-        this.cursorBackColor = cursorBackColor;
+    constructor(foreColor: Int, backColor: Int, cursorForeColor: Int, cursorBackColor: Int) {
+        this.foreColor = foreColor
+        this.backColor = backColor
+        this.cursorForeColor = cursorForeColor
+        this.cursorBackColor = cursorBackColor
     }
 
     /**
-     * Creates a <code>ColorScheme</code> object from an array.
+     * Creates a `ColorScheme` object from an array.
      *
-     * @param scheme An integer array <code>{ foreColor, backColor,
-     *               optionalCursorForeColor, optionalCursorBackColor }</code>.
+     * @param scheme An integer array `{ foreColor, backColor,
+     * optionalCursorForeColor, optionalCursorBackColor }`.
      */
-    public ColorScheme(int[] scheme) {
-        int schemeLength = scheme.length;
-        if (schemeLength != 2 && schemeLength != 4) {
-            throw new IllegalArgumentException();
-        }
-        this.foreColor = scheme[0];
-        this.backColor = scheme[1];
-        if (schemeLength == 2)  {
-            setDefaultCursorColors();
+    constructor(scheme: IntArray) {
+        val schemeLength = scheme.size
+        require(!(schemeLength != 2 && schemeLength != 4))
+        this.foreColor = scheme[0]
+        this.backColor = scheme[1]
+        if (schemeLength == 2) {
+            setDefaultCursorColors()
         } else {
-            this.cursorForeColor = scheme[2];
-            this.cursorBackColor = scheme[3];
+            this.cursorForeColor = scheme[2]
+            this.cursorBackColor = scheme[3]
         }
     }
 
-    /**
-     * @return This <code>ColorScheme</code>'s foreground color as an ARGB
-     *         hex value.
-     */
-    public int getForeColor() {
-        return foreColor;
-    }
+    companion object {
+        private const val sDefaultCursorBackColor = -0x7f7f80
 
-    /**
-     * @return This <code>ColorScheme</code>'s background color as an ARGB
-     *         hex value.
-     */
-    public int getBackColor() {
-        return backColor;
-    }
+        private fun distance(a: Int, b: Int): Int {
+            return (channelDistance(a, b, 0) * 3 + channelDistance(a, b, 1) * 5 + channelDistance(
+                a,
+                b,
+                2
+            ))
+        }
 
-    /**
-     * @return This <code>ColorScheme</code>'s cursor foreground color as an ARGB
-     *         hex value.
-     */
-    public int getCursorForeColor() {
-        return cursorForeColor;
-    }
+        private fun channelDistance(a: Int, b: Int, channel: Int): Int {
+            return abs((getChannel(a, channel) - getChannel(b, channel)).toDouble()).toInt()
+        }
 
-    /**
-     * @return This <code>ColorScheme</code>'s cursor background color as an ARGB
-     *         hex value.
-     */
-    public int getCursorBackColor() {
-        return cursorBackColor;
+        private fun getChannel(color: Int, channel: Int): Int {
+            return 0xff and (color shr ((2 - channel) * 8))
+        }
     }
 }

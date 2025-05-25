@@ -1,20 +1,77 @@
 package jackpal.androidterm.emulatorview;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.HashMap;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_BREAK;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_CAPS_LOCK;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_CTRL_LEFT;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_CTRL_RIGHT;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_DEL;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_DPAD_CENTER;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_DPAD_DOWN;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_DPAD_LEFT;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_DPAD_RIGHT;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_DPAD_UP;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_ENTER;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_ESCAPE;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F1;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F10;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F11;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F12;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F2;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F3;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F4;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F5;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F6;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F7;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F8;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_F9;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_FORWARD_DEL;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_FUNCTION;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_INSERT;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_MOVE_END;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_MOVE_HOME;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_0;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_1;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_2;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_3;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_4;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_5;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_6;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_7;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_8;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_9;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_ADD;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_COMMA;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_DIVIDE;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_DOT;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_ENTER;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_EQUALS;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_MULTIPLY;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUMPAD_SUBTRACT;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_NUM_LOCK;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_PAGE_DOWN;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_PAGE_UP;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_SPACE;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_SYSRQ;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.KEYCODE_TAB;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.META_ALT_ON;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.META_CTRL_MASK;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.META_CTRL_ON;
+import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.META_SHIFT_ON;
 
 import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
-import static jackpal.androidterm.emulatorview.compat.KeycodeConstants.*;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * An ASCII key listener. Supports control characters and escape. Keeps track of
  * the current state of the alt, shift, fn, and control keys.
  *
  */
-class TermKeyListener {
+public class TermKeyListener {
     private final static String TAG = "TermKeyListener";
     private static final boolean LOG_MISC = false;
     private static final boolean LOG_KEYS = false;

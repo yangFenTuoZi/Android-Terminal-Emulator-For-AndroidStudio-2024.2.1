@@ -1,4 +1,4 @@
-package jackpal.androidterm.emulatorview;
+package jackpal.androidterm.emulatorview
 
 /**
  * Utility class for dealing with text style lines.
@@ -13,85 +13,71 @@ package jackpal.androidterm.emulatorview;
  * Instead, we use an array of bytes and store the bytes of each int
  * consecutively in big-endian order.
  */
-final class StyleRow {
-    private int mStyle;
-    private int mColumns;
-    /** Initially null, will be allocated when needed. */
-    private byte[] mData;
+class StyleRow internal constructor(private var mStyle: Int, private val mColumns: Int) {
+    /** Initially null, will be allocated when needed.  */
+    private var mData: ByteArray? = null
 
-    StyleRow(int style, int columns) {
-        mStyle = style;
-        mColumns = columns;
-    }
-
-    void set(int column, int style) {
+    fun set(column: Int, style: Int) {
         if (style == mStyle && mData == null) {
-            return;
+            return
         }
-        ensureData();
-        setStyle(column, style);
+        ensureData()
+        setStyle(column, style)
     }
 
-    int get(int column) {
+    fun get(column: Int): Int {
         if (mData == null) {
-            return mStyle;
+            return mStyle
         }
-        return getStyle(column);
+        return getStyle(column)
     }
 
-    boolean isSolidStyle() {
-        return mData == null;
+    val isSolidStyle: Boolean
+        get() = mData == null
+
+    fun getSolidStyle(): Int {
+        require(mData == null) { "Not a solid style" }
+        return mStyle
     }
 
-    int getSolidStyle() {
-        if (mData != null) {
-            throw new IllegalArgumentException("Not a solid style");
-        }
-        return mStyle;
-    }
-
-    void copy(int start, StyleRow dst, int offset, int len) {
+    fun copy(start: Int, dst: StyleRow, offset: Int, len: Int) {
         // fast case
-        if (mData == null && dst.mData == null && start == 0 && offset == 0
-                && len == mColumns) {
-            dst.mStyle = mStyle;
-            return;
+        if (mData == null && dst.mData == null && start == 0 && offset == 0 && len == mColumns) {
+            dst.mStyle = mStyle
+            return
         }
         // There are other potentially fast cases, but let's just treat them
         // all the same for simplicity.
-        ensureData();
-        dst.ensureData();
-        System.arraycopy(mData, 3*start, dst.mData, 3*offset, 3*len);
-
+        ensureData()
+        dst.ensureData()
+        System.arraycopy(mData, 3 * start, dst.mData, 3 * offset, 3 * len)
     }
 
-    void ensureData() {
+    fun ensureData() {
         if (mData == null) {
-            allocate();
+            allocate()
         }
     }
 
-    private void allocate() {
-        mData = new byte[3*mColumns];
-        for (int i = 0; i < mColumns; i++) {
-            setStyle(i, mStyle);
+    private fun allocate() {
+        mData = ByteArray(3 * mColumns)
+        for (i in 0..<mColumns) {
+            setStyle(i, mStyle)
         }
     }
 
-    private int getStyle(int column) {
-        int index = 3 * column;
-        byte[] line = mData;
-        return line[index] & 0xff | (line[index+1] & 0xff) << 8
-                | (line[index+2] & 0xff) << 16;
+    private fun getStyle(column: Int): Int {
+        val index = 3 * column
+        val line = mData
+        return (line!![index].toInt() and 0xff or ((line[index + 1].toInt() and 0xff) shl 8
+                ) or ((line[index + 2].toInt() and 0xff) shl 16))
     }
 
-    private void setStyle(int column, int value) {
-        int index = 3 * column;
-        byte[] line = mData;
-        line[index] = (byte) (value & 0xff);
-        line[index+1] = (byte) ((value >> 8) & 0xff);
-        line[index+2] = (byte) ((value >> 16) & 0xff);
+    private fun setStyle(column: Int, value: Int) {
+        val index = 3 * column
+        val line = mData
+        line!![index] = (value and 0xff).toByte()
+        line[index + 1] = ((value shr 8) and 0xff).toByte()
+        line[index + 2] = ((value shr 16) and 0xff).toByte()
     }
-
-
 }

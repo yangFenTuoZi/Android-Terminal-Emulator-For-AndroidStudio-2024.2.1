@@ -13,31 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package jackpal.androidterm.emulatorview
 
-package jackpal.androidterm.emulatorview;
-
-import android.graphics.Canvas;
+import android.graphics.Canvas
 
 /**
  * Text renderer interface
  */
-
 interface TextRenderer {
-    int MODE_OFF = 0;
-    int MODE_ON = 1;
-    int MODE_LOCKED = 2;
-    int MODE_MASK = 3;
+    fun setReverseVideo(reverseVideo: Boolean)
+    val characterWidth: Float
+    val characterHeight: Int
 
-    int MODE_SHIFT_SHIFT = 0;
-    int MODE_ALT_SHIFT = 2;
-    int MODE_CTRL_SHIFT = 4;
-    int MODE_FN_SHIFT = 6;
+    /** @return pixels above top row of text to avoid looking cramped.
+     */
+    val topMargin: Int
 
-    void setReverseVideo(boolean reverseVideo);
-    float getCharacterWidth();
-    int getCharacterHeight();
-    /** @return pixels above top row of text to avoid looking cramped. */
-    int getTopMargin();
     /**
      * Draw a run of text
      * @param canvas The canvas to draw into.
@@ -56,8 +47,22 @@ interface TextRenderer {
      * @param cursorWidth The width of the cursor in screen columns (1 or 2)
      * @param cursorMode The cursor mode (used to show state of shift/control/alt/fn locks.
      */
-    void drawTextRun(Canvas canvas, float x, float y,
-            int lineOffset, int runWidth, char[] text,
-            int index, int count, boolean selectionStyle, int textStyle,
-            int cursorOffset, int cursorIndex, int cursorIncr, int cursorWidth, int cursorMode);
+    fun drawTextRun(
+        canvas: Canvas, x: Float, y: Float,
+        lineOffset: Int, runWidth: Int, text: CharArray, index: Int, count: Int,
+        selectionStyle: Boolean, textStyle: Int,
+        cursorOffset: Int, cursorIndex: Int, cursorIncr: Int, cursorWidth: Int, cursorMode: Int
+    )
+
+    companion object {
+        const val MODE_OFF: Int = 0
+        const val MODE_ON: Int = 1
+        const val MODE_LOCKED: Int = 2
+        const val MODE_MASK: Int = 3
+
+        const val MODE_SHIFT_SHIFT: Int = 0
+        const val MODE_ALT_SHIFT: Int = 2
+        const val MODE_CTRL_SHIFT: Int = 4
+        const val MODE_FN_SHIFT: Int = 6
+    }
 }

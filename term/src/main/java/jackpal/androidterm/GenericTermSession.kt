@@ -55,7 +55,7 @@ open class GenericTermSession(
     private val createdAt: Long = System.currentTimeMillis()
     private var mHandle: String? = null
     private var mProcessExitMessage: String? = null
-    private val mUTF8ModeNotify = UpdateCallback { setPtyUTF8Mode(utF8Mode) }
+    private val mUTF8ModeNotify = UpdateCallback { setPtyUTF8Mode(uTF8Mode) }
 
     init {
         updatePrefs(mSettings)
@@ -75,7 +75,7 @@ open class GenericTermSession(
             rws = 24
         }
         super.initializeEmulator(cols, rws)
-        setPtyUTF8Mode(utF8Mode)
+        setPtyUTF8Mode(uTF8Mode)
         setUTF8ModeUpdateCallback(mUTF8ModeNotify)
     }
 
@@ -126,7 +126,7 @@ open class GenericTermSession(
      *     unset or an empty string.
      */
     fun getTitle(defaultTitle: String): String {
-        val title = getTitle()
+        val title = super.title
         return if (!title.isNullOrEmpty()) title else defaultTitle
     }
 
