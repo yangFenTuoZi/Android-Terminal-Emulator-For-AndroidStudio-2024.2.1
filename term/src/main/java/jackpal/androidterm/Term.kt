@@ -622,7 +622,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     private fun windowList() {
-        val adapter = WindowListAdapter(mTermSessions)
+        val adapter = WindowListAdapter(mTermSessions, mViewFlipper?.displayedChild?: -1)
         adapter.mDialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.window_list)
             .setAdapter(adapter) { _, which ->

@@ -25,12 +25,14 @@ import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import com.google.android.material.radiobutton.MaterialRadioButton
 import jackpal.androidterm.emulatorview.UpdateCallback
 import jackpal.androidterm.util.SessionList
 
-open class WindowListAdapter(val mSessions: SessionList?) : BaseAdapter(), UpdateCallback {
+open class WindowListAdapter(val mSessions: SessionList?, val displayedChild: Int) : BaseAdapter(), UpdateCallback {
 
     var mDialog: AlertDialog? = null
+
     init {
         if (mSessions != null) {
             mSessions.addCallback(this)
@@ -76,6 +78,8 @@ open class WindowListAdapter(val mSessions: SessionList?) : BaseAdapter(), Updat
         child?.findViewById<TextView>(R.id.window_list_label)?.apply {
             text = getSessionTitle(position, parent.context.getString(R.string.window_title, position + 1))
         }
+        if (position == displayedChild)
+            child?.findViewById<MaterialRadioButton>(R.id.radio_button)?.isChecked = true
         return child!!
     }
 
