@@ -24,11 +24,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import jackpal.androidterm.emulatorview.UpdateCallback
 import jackpal.androidterm.util.SessionList
 
 open class WindowListAdapter(val mSessions: SessionList?) : BaseAdapter(), UpdateCallback {
 
+    var mDialog: AlertDialog? = null
     init {
         if (mSessions != null) {
             mSessions.addCallback(this)
@@ -64,6 +66,7 @@ open class WindowListAdapter(val mSessions: SessionList?) : BaseAdapter(), Updat
         val sessions = mSessions
         val closePosition = position
         child?.findViewById<View>(R.id.window_list_close)?.setOnClickListener {
+            mDialog?.dismiss()
             val session = sessions?.removeAt(closePosition)
             if (session != null) {
                 session.finish()
