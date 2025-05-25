@@ -173,7 +173,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
             override fun run() {
                 Looper.prepare()
 
-                mWriterHandler = object : Handler(HandlerThread("mWriterThread").apply { start() }.looper) {
+                mWriterHandler = object : Handler(Looper.myLooper()!!) {
                     override fun handleMessage(msg: Message) {
                         if (msg.what == NEW_OUTPUT) {
                             writeToOutput()

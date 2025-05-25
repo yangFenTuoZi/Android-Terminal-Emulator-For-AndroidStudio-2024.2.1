@@ -20,6 +20,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.Gravity
 import android.view.View
@@ -43,7 +44,7 @@ class TermViewFlipper : ViewFlipper, Iterable<View> {
     private var mChildParams: LayoutParams? = null
     private var mRedoLayout = false
     private val mbPollForWindowSizeChange = false
-    private val mHandler = Handler()
+    private val mHandler = Handler(Looper.getMainLooper())
     private val SCREEN_CHECK_PERIOD = 1000
     private val mCheckSize = object : Runnable {
         override fun run() {
@@ -131,10 +132,7 @@ class TermViewFlipper : ViewFlipper, Iterable<View> {
             title = session.getTitle(title)
         }
         mToast?.cancel()
-        mToast = Toast.makeText(contextRef, title, Toast.LENGTH_SHORT).apply {
-            setGravity(Gravity.CENTER, 0, 0)
-            show()
-        }
+        mToast = Toast.makeText(contextRef, title, Toast.LENGTH_SHORT).apply { show() }
     }
 
     override fun showPrevious() {

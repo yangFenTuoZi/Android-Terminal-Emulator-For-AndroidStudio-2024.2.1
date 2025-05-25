@@ -33,8 +33,8 @@ import android.net.wifi.WifiManager.WifiLock
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
-import android.os.HandlerThread
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.os.PowerManager.WakeLock
 import android.text.TextUtils
@@ -244,7 +244,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
     }
 
-    private val mHandler = Handler(HandlerThread("mThread").apply { start() }.looper)
+    private val mHandler = Handler(Looper.getMainLooper())
 
     private var mActionBarMode: Int = TermSettings.ACTION_BAR_MODE_NONE
 
@@ -786,7 +786,8 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             if (sessions.size < it) {
                 var i = 0
                 while (i < it) {
-                    val v = mViewFlipper?.getChildAt(i) as EmulatorView
+                    val v = mViewFlipper?.getChildAt(i) as EmulatorView?
+                    if (v == null) break
                     if (!sessions.contains(v.termSession)) {
                         v.onPause()
                         mViewFlipper?.removeView(v)
