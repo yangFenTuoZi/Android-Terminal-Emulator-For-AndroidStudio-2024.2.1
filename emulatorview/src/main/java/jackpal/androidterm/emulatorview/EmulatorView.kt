@@ -22,7 +22,7 @@ import android.graphics.Paint
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import android.text.SpannableStringBuilder
 import android.text.TextUtils
 import android.text.style.URLSpan
@@ -211,7 +211,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     private var mScrollRemainder = 0f
     private var mKeyListener: TermKeyListener? = null
     private var mImeBuffer = ""
-    private val mHandler = Handler(Looper.getMainLooper())
+    private val mHandler = Handler(HandlerThread("mThread").apply { start() }.looper)
 
     private val mUpdateNotify = object : UpdateCallback {
         override fun onUpdate() {

@@ -16,6 +16,7 @@
 package jackpal.androidterm.emulatorview
 
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
 import java.io.IOException
@@ -111,7 +112,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
      */
     var isRunning: Boolean = false
         private set
-    private val mMsgHandler: Handler = object : Handler(Looper.getMainLooper()) {
+    private val mMsgHandler: Handler = object : Handler(HandlerThread("mMsgThread").apply { start() }.looper) {
         override fun handleMessage(msg: Message) {
             if (!isRunning) {
                 return
@@ -172,7 +173,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
             override fun run() {
                 Looper.prepare()
 
-                mWriterHandler = object : Handler(Looper.getMainLooper()) {
+                mWriterHandler = object : Handler(HandlerThread("mWriterThread").apply { start() }.looper) {
                     override fun handleMessage(msg: Message) {
                         if (msg.what == NEW_OUTPUT) {
                             writeToOutput()

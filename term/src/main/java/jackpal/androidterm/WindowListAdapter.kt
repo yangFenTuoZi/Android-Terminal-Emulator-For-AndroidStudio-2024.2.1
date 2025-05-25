@@ -19,6 +19,7 @@ package jackpal.androidterm
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
@@ -64,12 +65,11 @@ open class WindowListAdapter(sessions: SessionList?) : BaseAdapter(), UpdateCall
         }
     }
 
-    override fun getView(position: Int, convertView: View, parent: ViewGroup): View {
-        val act = findActivityFromContext(parent.context)
-        val child = act?.layoutInflater?.inflate(R.layout.window_list_item, parent, false)
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+        val child = LayoutInflater.from(parent.context).inflate(R.layout.window_list_item, parent, false)
         val close = child?.findViewById<View>(R.id.window_list_close)
         val label = child?.findViewById<TextView>(R.id.window_list_label)
-        val defaultTitle = act?.getString(R.string.window_title, position + 1) ?: "Window ${position + 1}"
+        val defaultTitle = parent.context.getString(R.string.window_title, position + 1)
         label?.text = getSessionTitle(position, defaultTitle)
         val sessions = mSessions
         val closePosition = position

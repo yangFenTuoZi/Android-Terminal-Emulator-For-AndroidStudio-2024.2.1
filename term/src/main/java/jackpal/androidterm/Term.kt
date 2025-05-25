@@ -33,6 +33,7 @@ import android.net.wifi.WifiManager
 import android.net.wifi.WifiManager.WifiLock
 import android.os.Bundle
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
 import android.os.PowerManager
 import android.os.PowerManager.WakeLock
@@ -58,6 +59,7 @@ import androidx.core.net.toUri
 import androidx.core.view.get
 import androidx.core.view.size
 import androidx.preference.PreferenceManager
+import com.google.android.material.appbar.MaterialToolbar
 import jackpal.androidterm.TermService.TSBinder
 import jackpal.androidterm.emulatorview.EmulatorView
 import jackpal.androidterm.emulatorview.TermSession
@@ -143,7 +145,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
     private inner class WindowListActionBarAdapter(sessions: SessionList?) :
         WindowListAdapter(sessions), UpdateCallback {
-        override fun getView(position: Int, convertView: View, parent: ViewGroup): View {
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val label = TextView(this@Term)
             val title = getSessionTitle(position, getString(R.string.window_title, position + 1))
             label.text = title
@@ -288,7 +290,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
     }
 
-    private val mHandler = Handler()
+    private val mHandler = Handler(HandlerThread("mThread").apply { start() }.looper)
 
     public override fun onCreate(icicle: Bundle?) {
         super.onCreate(icicle)
@@ -337,6 +339,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
 
         setContentView(R.layout.term_activity)
+        setSupportActionBar(findViewById<MaterialToolbar>(R.id.toolbar))
         mViewFlipper = findViewById<TermViewFlipper?>(VIEW_FLIPPER)
 
         val pm = getSystemService(POWER_SERVICE) as PowerManager
