@@ -16,7 +16,6 @@
 package jackpal.androidterm.emulatorview
 
 import android.os.Handler
-import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
 import java.io.IOException
@@ -112,7 +111,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
      */
     var isRunning: Boolean = false
         private set
-    private val mMsgHandler: Handler = object : Handler(HandlerThread("mMsgThread").apply { start() }.looper) {
+    private val mMsgHandler: Handler = object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
             if (!isRunning) {
                 return
@@ -139,8 +138,8 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
             override fun run() {
                 try {
                     while (true) {
-                        var read = mTermIn!!.read(mBuffer)
-                        if (read == -1) {
+                        var read = mTermIn?.read(mBuffer)
+                        if (read == -1 || read == null) {
                             // EOF -- process exited
                             break
                         }
@@ -178,7 +177,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
                         if (msg.what == NEW_OUTPUT) {
                             writeToOutput()
                         } else if (msg.what == FINISH) {
-                            Looper.myLooper()!!.quit()
+                            Looper.myLooper()?.quit()
                         }
                     }
                 }
@@ -384,7 +383,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
      */
     protected fun notifyUpdate() {
         if (mNotify != null) {
-            mNotify!!.onUpdate()
+            mNotify?.onUpdate()
         }
     }
 
@@ -438,7 +437,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
         if (this.emulator == null) {
             initializeEmulator(columns, rows)
         } else {
-            emulator!!.updateSize(columns, rows)
+            emulator?.updateSize(columns, rows)
         }
     }
 
@@ -449,7 +448,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
          * @return A [String] containing the contents of the screen and
          * scrollback buffer.
          */
-        get() = transcriptScreen!!.transcriptText
+        get() = transcriptScreen?.transcriptText
 
     /**
      * Look for new input from the ptty, send it to the terminal emulator.
@@ -484,7 +483,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
      * @param count The number of bytes read.
      */
     protected fun processInput(data: ByteArray, offset: Int, count: Int) {
-        emulator!!.append(data, offset, count)
+        emulator?.append(data, offset, count)
     }
 
     /**
@@ -497,7 +496,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
      * @param count The length of the data to be written.
      */
     protected fun appendToEmulator(data: ByteArray, offset: Int, count: Int) {
-        emulator!!.append(data, offset, count)
+        emulator?.append(data, offset, count)
     }
 
     /**
@@ -515,7 +514,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
         if (this.emulator == null) {
             return
         }
-        emulator!!.setColorScheme(scheme)
+        emulator?.setColorScheme(scheme)
     }
 
     /**
@@ -535,7 +534,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
         if (this.emulator == null) {
             return
         }
-        emulator!!.setDefaultUTF8Mode(utf8ByDefault)
+        emulator?.setDefaultUTF8Mode(utf8ByDefault)
     }
 
     val uTF8Mode: Boolean
@@ -558,7 +557,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
      */
     fun setUTF8ModeUpdateCallback(utf8ModeNotify: UpdateCallback?) {
         if (this.emulator != null) {
-            emulator!!.setUTF8ModeUpdateCallback(utf8ModeNotify)
+            emulator?.setUTF8ModeUpdateCallback(utf8ModeNotify)
         }
     }
 
@@ -566,7 +565,7 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
      * Reset the terminal emulator's state.
      */
     fun reset() {
-        emulator!!.reset()
+        emulator?.reset()
         notifyUpdate()
     }
 
@@ -587,26 +586,20 @@ open class TermSession @JvmOverloads constructor(exitOnEOF: Boolean = false) {
      */
     open fun finish() {
         this.isRunning = false
-        emulator!!.finish()
+        emulator?.finish()
         if (this.transcriptScreen != null) {
-            transcriptScreen!!.finish()
+            transcriptScreen?.finish()
         }
 
         // Stop the reader and writer threads, and close the I/O streams
-        if (mWriterHandler != null) {
-            mWriterHandler!!.sendEmptyMessage(FINISH)
-        }
+        mWriterHandler?.sendEmptyMessage(FINISH)
         try {
-            mTermIn!!.close()
-            mTermOut!!.close()
+            mTermIn?.close()
+            mTermOut?.close()
         } catch (_: IOException) {
-            // We don't care if this fails
-        } catch (_: NullPointerException) {
         }
 
-        if (mFinishCallback != null) {
-            mFinishCallback!!.onSessionFinish(this)
-        }
+        mFinishCallback?.onSessionFinish(this)
     }
 
     companion object {

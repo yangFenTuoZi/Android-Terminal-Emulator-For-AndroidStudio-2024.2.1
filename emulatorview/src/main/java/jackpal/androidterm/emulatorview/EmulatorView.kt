@@ -338,17 +338,19 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
 
             @Throws(IOException::class)
             private fun mapAndSend(c: Int) {
-                val result = mKeyListener!!.mapControlChar(c)
-                if (result < TermKeyListener.KEYCODE_OFFSET) {
-                    mTermSession!!.write(result)
-                } else {
-                    mKeyListener!!.handleKeyCode(
-                        result - TermKeyListener.KEYCODE_OFFSET,
-                        null,
-                        getKeypadApplicationMode()
-                    )
+                val result = mKeyListener?.mapControlChar(c)
+                result?.let {
+                    if (it < TermKeyListener.KEYCODE_OFFSET) {
+                        mTermSession?.write(result)
+                    } else {
+                        mKeyListener?.handleKeyCode(
+                            result - TermKeyListener.KEYCODE_OFFSET,
+                            null,
+                            getKeypadApplicationMode()
+                        )
+                    }
+                    clearSpecialKeyStatus()
                 }
-                clearSpecialKeyStatus()
             }
 
             override fun beginBatchEdit(): Boolean {

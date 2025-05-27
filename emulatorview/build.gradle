@@ -8,7 +8,7 @@ android {
     namespace "jackpal.androidterm.emulatorview"
 
     defaultConfig {
-        minSdk 26
+        minSdk 24
         targetSdk 36
     }
 

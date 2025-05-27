@@ -30,8 +30,6 @@
 
    <string name="enable_wakelock">开启唤醒锁</string>
    <string name="disable_wakelock">关闭唤醒锁</string>
-   <string name="enable_wifilock">开启 Wifi 锁</string>
-   <string name="disable_wifilock">关闭 Wifi 锁</string>
 
    <string name="edit_text">编辑文本</string>
    <string name="select_text">选择文本</string>
@@ -42,7 +40,7 @@
 
    <string name="window_title">窗口 %1$d</string>
 
-   <string name="service_notify_text">会话正在运行</string>
+   <string name="service_notify_text">%1$d 个会话</string>
 
    <string name="process_exit_message">会话已结束</string>
 

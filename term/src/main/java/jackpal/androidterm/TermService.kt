@@ -16,7 +16,6 @@
 
 package jackpal.androidterm
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -25,6 +24,7 @@ import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.os.Binder
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -33,6 +33,7 @@ import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import android.text.TextUtils
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.preference.PreferenceManager
@@ -43,6 +44,15 @@ import jackpal.androidterm.util.TermSettings
 import java.util.UUID
 
 class TermService : Service(), TermSession.FinishCallback {
+
+    companion object {
+        const val ACTION_CLOSE_ALL_SESSIONS = "terminal.action.CLOSE_ALL_SESSIONS"
+        const val ACTION_ENABLE_WAKE_LOCK = "terminal.action.ENABLE_WAKE_LOCK"
+        const val ACTION_DISABLE_WAKE_LOCK = "terminal.action.DISABLE_WAKE_LOCK"
+    }
+
+    val channelId = "term_service_channel"
+
     private var mTermSessions: SessionList = SessionList()
 
     inner class TSBinder : Binder() {
@@ -53,7 +63,35 @@ class TermService : Service(), TermSession.FinishCallback {
     private val mTSBinder: IBinder = TSBinder()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
+        return if (intent != null) {
+            when (intent.action) {
+                ACTION_CLOSE_ALL_SESSIONS -> {
+                    Log.i("TermService", "Closing all sessions")
+                    for (session in mTermSessions) {
+                        session.setFinishCallback(null)
+                        session.finish()
+                    }
+                    mTermSessions.clear()
+                    stopSelf()
+                    START_NOT_STICKY
+                }
+
+                ACTION_ENABLE_WAKE_LOCK -> {
+                    Log.i("TermService", "Enabling wake lock")
+                    START_NOT_STICKY
+                }
+
+                ACTION_DISABLE_WAKE_LOCK -> {
+                    Log.i("TermService", "Disabling wake lock")
+                    START_NOT_STICKY
+                }
+
+                else -> {
+                    Log.w("TermService", "Unknown action: ${intent.action}")
+                    START_STICKY
+                }
+            }
+        } else START_STICKY
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -66,36 +104,79 @@ class TermService : Service(), TermSession.FinishCallback {
         }
     }
 
+    fun updateNotification() {
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(1, buildNotification().build())
+    }
+
+    fun buildNotification(): NotificationCompat.Builder {
+        return NotificationCompat.Builder(this, channelId).apply {
+            setSmallIcon(R.drawable.ic_stat_service_notification_icon)
+            setContentTitle(getString(R.string.application_terminal))
+            setContentText(getString(R.string.service_notify_text, mTermSessions.size))
+            setWhen(System.currentTimeMillis())
+            setOngoing(true)
+            setContentIntent(
+                PendingIntent.getActivity(
+                    this@TermService, 0, Intent(this@TermService, Term::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+            addAction(
+                NotificationCompat.Action.Builder(
+                    null,
+                    getString(R.string.close_window),
+                    PendingIntent.getService(
+                        this@TermService, 0,
+                        Intent().apply {
+                            setClass(this@TermService, TermService::class.java)
+                            action = ACTION_CLOSE_ALL_SESSIONS
+                            `package` = BuildConfig.APPLICATION_ID
+                        },
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                ).build()
+            )
+            val hasWakeLock = true
+            addAction(
+                NotificationCompat.Action.Builder(
+                    null,
+                    getString(if (hasWakeLock) R.string.disable_wakelock else R.string.enable_wakelock),
+                    PendingIntent.getService(
+                        this@TermService, 0, Intent().apply {
+                            setClass(this@TermService, TermService::class.java)
+                            action =
+                                if (hasWakeLock) ACTION_DISABLE_WAKE_LOCK else ACTION_ENABLE_WAKE_LOCK
+                            `package` = BuildConfig.APPLICATION_ID
+                        },
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                ).build()
+            )
+        }
+    }
+
     override fun onCreate() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
-        prefs.edit {
-            val defValue = getDir("HOME", MODE_PRIVATE).absolutePath
-            val homePath = prefs.getString("home_path", defValue)
-            putString("home_path", homePath)
-        }
+        if (prefs.getString("home_path", null) == null)
+            prefs.edit {
+                putString("home_path", getDir("HOME", MODE_PRIVATE).absolutePath)
+            }
 
         mTermSessions = SessionList()
 
-        val channelId = "term_service_channel"
-        val channelName = getString(R.string.application_terminal)
-        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW)
-        nm.createNotificationChannel(channel)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            val channel =
+                NotificationChannel(
+                    channelId,
+                    getString(R.string.application_terminal),
+                    NotificationManager.IMPORTANCE_LOW
+                )
+            nm.createNotificationChannel(channel)
+        }
 
-        val notifyIntent = Intent(this, Term::class.java)
-        notifyIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val pendingIntent = PendingIntent.getActivity(this, 0, notifyIntent, PendingIntent.FLAG_IMMUTABLE)
-
-        val notification = Notification.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_stat_service_notification_icon)
-            .setContentTitle(getText(R.string.application_terminal))
-            .setContentText(getText(R.string.service_notify_text))
-            .setWhen(System.currentTimeMillis())
-            .setOngoing(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        startForeground(1, notification)
+        startForeground(1, buildNotification().build())
         Log.d(TermDebug.LOG_TAG, "TermService started")
     }
 
@@ -113,17 +194,26 @@ class TermService : Service(), TermSession.FinishCallback {
 
     override fun onSessionFinish(session: TermSession?) {
         mTermSessions.remove(session)
+        updateNotification()
     }
 
     private inner class RBinder : ITerminal.Stub() {
-        override fun startSession(pseudoTerminalMultiplexerFd: ParcelFileDescriptor, callback: ResultReceiver): IntentSender? {
+        override fun startSession(
+            pseudoTerminalMultiplexerFd: ParcelFileDescriptor,
+            callback: ResultReceiver
+        ): IntentSender? {
             val sessionHandle = UUID.randomUUID().toString()
             val switchIntent = Intent(RemoteInterface.PRIVACT_OPEN_NEW_WINDOW)
                 .setData(sessionHandle.toUri())
                 .addCategory(Intent.CATEGORY_DEFAULT)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(RemoteInterface.PRIVEXTRA_TARGET_WINDOW, sessionHandle)
-            val result = PendingIntent.getActivity(applicationContext, sessionHandle.hashCode(), switchIntent, PendingIntent.FLAG_IMMUTABLE)
+            val result = PendingIntent.getActivity(
+                applicationContext,
+                sessionHandle.hashCode(),
+                switchIntent,
+                PendingIntent.FLAG_IMMUTABLE
+            )
             val pm = packageManager
             val pkgs = pm.getPackagesForUid(getCallingUid()) ?: return null
             for (packageName in pkgs) {
@@ -136,15 +226,33 @@ class TermService : Service(), TermSession.FinishCallback {
                         Handler(Looper.getMainLooper()).post {
                             var session: GenericTermSession? = null
                             try {
-                                val settings = TermSettings(resources, PreferenceManager.getDefaultSharedPreferences(applicationContext))
-                                session = BoundSession(pseudoTerminalMultiplexerFd, settings, niceName)
+                                val settings = TermSettings(
+                                    resources,
+                                    PreferenceManager.getDefaultSharedPreferences(
+                                        applicationContext
+                                    )
+                                )
+                                session =
+                                    BoundSession(
+                                        pseudoTerminalMultiplexerFd,
+                                        settings,
+                                        niceName
+                                    )
                                 mTermSessions.add(session)
                                 session.handle = sessionHandle
-                                session.setFinishCallback(RBinderCleanupCallback(result, callback))
+                                session.setFinishCallback(
+                                    RBinderCleanupCallback(
+                                        result,
+                                        callback
+                                    )
+                                )
                                 session.title = ""
                                 session.initializeEmulator(80, 24)
                             } catch (e: Exception) {
-                                Log.e("TermService", "Failed to bootstrap AIDL session: " + e.message)
+                                Log.e(
+                                    "TermService",
+                                    "Failed to bootstrap AIDL session: " + e.message
+                                )
                                 session?.finish()
                             }
                         }
@@ -157,7 +265,10 @@ class TermService : Service(), TermSession.FinishCallback {
         }
     }
 
-    private inner class RBinderCleanupCallback(private val result: PendingIntent, private val callback: ResultReceiver) : TermSession.FinishCallback {
+    private inner class RBinderCleanupCallback(
+        private val result: PendingIntent,
+        private val callback: ResultReceiver
+    ) : TermSession.FinishCallback {
         override fun onSessionFinish(session: TermSession?) {
             result.cancel()
             callback.send(0, Bundle())

@@ -27,8 +27,6 @@ import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.content.res.Resources
-import android.net.wifi.WifiManager
-import android.net.wifi.WifiManager.WifiLock
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -95,7 +93,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     private var mPrivateAlias: ComponentName? = null
 
     private var mWakeLock: WakeLock? = null
-    private var mWifiLock: WifiLock? = null
     private val mBackKeyPressed = false
 
     private var mPendingPathBroadcasts = 0
@@ -289,16 +286,11 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
         setContentView(R.layout.term_activity)
         setSupportActionBar(findViewById<MaterialToolbar>(R.id.toolbar))
-        mViewFlipper = findViewById<TermViewFlipper?>(VIEW_FLIPPER)
+        mViewFlipper = findViewById<TermViewFlipper?>(R.id.view_flipper)
         // 初始化 Spinner
 
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Term:wakelock")
-        val wm = getSystemService(WIFI_SERVICE) as WifiManager
-        mWifiLock = wm.createWifiLock(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF,
-            "Term:wifilock"
-        )
 
         mHaveFullHwKeyboard = checkHaveFullHwKeyboard(getResources().configuration)
 
@@ -351,6 +343,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             if (mTermSessions?.isEmpty() == true) {
                 try {
                     mTermSessions?.add(createTermSession())
+                    mTermService?.updateNotification()
                 } catch (_: IOException) {
                     Toast.makeText(this, "Failed to start terminal session", Toast.LENGTH_LONG)
                         .show()
@@ -392,17 +385,14 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         if (mWakeLock?.isHeld == true) {
             mWakeLock?.release()
         }
-        if (mWifiLock?.isHeld == true) {
-            mWifiLock?.release()
-        }
     }
 
     @Throws(IOException::class)
     private fun createTermSession(): TermSession {
         val settings: TermSettings = mSettings ?: throw IOException("No settings available")
-        val session = createTermSession(this, settings, settings.initialCommand)
-        session.setFinishCallback(mTermService)
-        return session
+        return createTermSession(this, settings, settings.initialCommand).apply {
+            setFinishCallback(mTermService)
+        }
     }
 
     private fun createEmulatorView(session: TermSession): TermView {
@@ -541,7 +531,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             R.id.menu_special_keys -> doDocumentKeys()
             R.id.menu_toggle_soft_keyboard -> doToggleSoftKeyboard()
             R.id.menu_toggle_wakelock -> doToggleWakeLock()
-            R.id.menu_toggle_wifilock -> doToggleWifiLock()
             else -> result = super.onOptionsItemSelected(item)
         }
         return result
@@ -557,6 +546,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             val session = createTermSession()
 
             mTermSessions?.add(session)
+            mTermService?.updateNotification()
 
             val view = createEmulatorView(session)
             mSettings?.let { view.updatePrefs(it) }
@@ -656,16 +646,10 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
         val wakeLockItem = menu.findItem(R.id.menu_toggle_wakelock)
-        val wifiLockItem = menu.findItem(R.id.menu_toggle_wifilock)
         if (mWakeLock?.isHeld == true) {
             wakeLockItem.setTitle(R.string.disable_wakelock)
         } else {
             wakeLockItem.setTitle(R.string.enable_wakelock)
-        }
-        if (mWifiLock?.isHeld == true) {
-            wifiLockItem.setTitle(R.string.disable_wifilock)
-        } else {
-            wifiLockItem.setTitle(R.string.enable_wifilock)
         }
         return super.onPrepareOptionsMenu(menu)
     }
@@ -872,15 +856,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         invalidateOptionsMenu()
     }
 
-    private fun doToggleWifiLock() {
-        if (mWifiLock?.isHeld == true) {
-            mWifiLock?.release()
-        } else {
-            mWifiLock?.acquire()
-        }
-        invalidateOptionsMenu()
-    }
-
     private fun doUIToggle(x: Int, y: Int, width: Int, height: Int) {
         when (mActionBarMode) {
             TermSettings.ACTION_BAR_MODE_NONE -> if (mHaveFullHwKeyboard || y < height / 2) {
@@ -917,11 +892,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     companion object {
-        /**
-         * The name of the ViewFlipper in the resources.
-         */
-        private val VIEW_FLIPPER = R.id.view_flipper
-
         private const val SELECT_TEXT_ID = 0
         private const val COPY_ALL_ID = 1
         private const val PASTE_ID = 2
