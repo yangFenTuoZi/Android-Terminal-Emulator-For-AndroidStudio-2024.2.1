@@ -69,16 +69,8 @@
     </string-array>
 
     <string-array name="entries_color_preference">
-        <item>白底黑字</item>
-        <item>黑底白字</item>
-        <item>蓝底白字</item>
-        <item>黑底绿字</item>
-        <item>黑底黄字</item>
-        <item>黑底红字</item>
-        <item>Holo 风格</item>
-        <item>爆光过度</item>
-        <item>爆光不足</item>
-        <item>Linux 终端</item>
+        <item>明亮</item>
+        <item>暗黑</item>
     </string-array>
 
     <string-array name="entries_backaction_preference">

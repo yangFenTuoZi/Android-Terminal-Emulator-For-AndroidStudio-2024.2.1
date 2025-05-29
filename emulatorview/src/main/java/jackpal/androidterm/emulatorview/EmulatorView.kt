@@ -254,7 +254,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
         mBackgroundPaint = Paint()
         mTopRow = 0
         mLeftColumn = 0
-        mGestureDetector = GestureDetector(this)
+        mGestureDetector = GestureDetector(context, this)
         isVerticalScrollBarEnabled = true
         isFocusable = true
         isFocusableInTouchMode = true

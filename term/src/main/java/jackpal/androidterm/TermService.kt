@@ -30,6 +30,8 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.PowerManager
+import android.os.PowerManager.WakeLock
 import android.os.ResultReceiver
 import android.text.TextUtils
 import android.util.Log
@@ -54,6 +56,7 @@ class TermService : Service(), TermSession.FinishCallback {
     val channelId = "term_service_channel"
 
     private var mTermSessions: SessionList = SessionList()
+    private lateinit var mWakeLock: WakeLock
 
     inner class TSBinder : Binder() {
         val service: TermService
@@ -61,6 +64,7 @@ class TermService : Service(), TermSession.FinishCallback {
     }
 
     private val mTSBinder: IBinder = TSBinder()
+
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return if (intent != null) {
@@ -78,11 +82,19 @@ class TermService : Service(), TermSession.FinishCallback {
 
                 ACTION_ENABLE_WAKE_LOCK -> {
                     Log.i("TermService", "Enabling wake lock")
+                    if (!mWakeLock.isHeld) {
+                        mWakeLock.acquire()
+                    }
+                    updateNotification()
                     START_NOT_STICKY
                 }
 
                 ACTION_DISABLE_WAKE_LOCK -> {
                     Log.i("TermService", "Disabling wake lock")
+                    if (mWakeLock.isHeld) {
+                        mWakeLock.release()
+                    }
+                    updateNotification()
                     START_NOT_STICKY
                 }
 
@@ -125,7 +137,7 @@ class TermService : Service(), TermSession.FinishCallback {
             addAction(
                 NotificationCompat.Action.Builder(
                     null,
-                    getString(R.string.close_window),
+                    getString(R.string.exit),
                     PendingIntent.getService(
                         this@TermService, 0,
                         Intent().apply {
@@ -137,7 +149,7 @@ class TermService : Service(), TermSession.FinishCallback {
                     )
                 ).build()
             )
-            val hasWakeLock = true
+            val hasWakeLock = mWakeLock.isHeld
             addAction(
                 NotificationCompat.Action.Builder(
                     null,
@@ -162,6 +174,11 @@ class TermService : Service(), TermSession.FinishCallback {
             prefs.edit {
                 putString("home_path", getDir("HOME", MODE_PRIVATE).absolutePath)
             }
+
+        mWakeLock = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "Term:wakelock"
+        )
 
         mTermSessions = SessionList()
 

@@ -69,16 +69,8 @@
     </string-array>
 
     <string-array name="entries_color_preference">
-        <item>Black text on white</item>
-        <item>White text on black</item>
-        <item>White text on blue</item>
-        <item>Green text on black</item>
-        <item>Amber text on black</item>
-        <item>Red text on black</item>
-        <item>Holo blue text on black</item>
-        <item>Solarized Light</item>
-        <item>Solarized Dark</item>
-        <item>Linux Console</item>
+        <item>Light</item>
+        <item>Dark</item>
     </string-array>
 
     <string-array name="entries_backaction_preference">

@@ -63,29 +63,11 @@ class TermSettings(res: Resources, prefs: SharedPreferences) {
 
         const val WHITE = 0xffffffff.toInt()
         const val BLACK = 0xff000000.toInt()
-        const val BLUE = 0xff344ebd.toInt()
-        const val GREEN = 0xff00ff00.toInt()
-        const val AMBER = 0xffffb651.toInt()
-        const val RED = 0xffff0113.toInt()
-        const val HOLO_BLUE = 0xff33b5e5.toInt()
-        const val SOLARIZED_FG = 0xff657b83.toInt()
-        const val SOLARIZED_BG = 0xfffdf6e3.toInt()
-        const val SOLARIZED_DARK_FG = 0xff839496.toInt()
-        const val SOLARIZED_DARK_BG = 0xff002b36.toInt()
-        const val LINUX_CONSOLE_WHITE = 0xffaaaaaa.toInt()
 
         // foreground color, background color
         val COLOR_SCHEMES = arrayOf(
             intArrayOf(BLACK, WHITE),
             intArrayOf(WHITE, BLACK),
-            intArrayOf(WHITE, BLUE),
-            intArrayOf(GREEN, BLACK),
-            intArrayOf(AMBER, BLACK),
-            intArrayOf(RED, BLACK),
-            intArrayOf(HOLO_BLUE, BLACK),
-            intArrayOf(SOLARIZED_FG, SOLARIZED_BG),
-            intArrayOf(SOLARIZED_DARK_FG, SOLARIZED_DARK_BG),
-            intArrayOf(LINUX_CONSOLE_WHITE, BLACK)
         )
 
         const val ACTION_BAR_MODE_NONE = 0

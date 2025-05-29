@@ -52,7 +52,7 @@
    <string name="dialog_title_statusbar_preference">Status bar</string>
 
    <string name="title_actionbar_preference">Action bar</string>
-   <string name="summary_actionbar_preference">Choose the action bar\'s behavior (Android 3.0 and up).</string>
+   <string name="summary_actionbar_preference">Choose the action bar\'s behavior.</string>
    <string name="dialog_title_actionbar_preference">Action bar behavior</string>
 
    <string name="title_orientation_preference">Screen orientation</string>
@@ -156,10 +156,9 @@
   <string name="use_keyboard_shortcuts_summary_on">Ctrl-Tab: cycle window, Ctrl-Shift-N: new window, Ctrl-Shift-V: paste.</string>
   <string name="use_keyboard_shortcuts_summary_off">Keyboard shortcuts disabled.</string>
 
-  <string name="activity_term_here_title">Term here</string>
   <!-- BEGIN SHORTCUT RELATED STRINGS -->
   <!-- AndroidManifest.xml -->
-  <string name="activity_shortcut_create">"Term shortcut"</string>
+    <string name="activity_term_here_title">Term here</string>
   <!-- FSNavigator.java -->
   <string name="fsnavigator_title">FILE SELECTOR</string>
   <string name="fsnavigator_no_external_storage">External storage not available</string>
@@ -184,5 +183,6 @@
   <string name="colorvalue_letter_blue">B</string>
   <string name="colorvalue_label_lock_button_column">LOCK</string>
   <string name="colorvalue_icon_text_entry_hint">Enter icon text</string>
-  <!-- END SHORTCUT RELATED STRINGS -->
+    <string name="exit">Exit</string>
+    <!-- END SHORTCUT RELATED STRINGS -->
 </resources>

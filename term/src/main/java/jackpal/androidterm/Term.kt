@@ -294,8 +294,10 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         mEmulatorView.setOnKeyListener(mKeyListener)
         registerForContextMenu(mEmulatorView)
 
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Term:wakelock")
+        mWakeLock = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "Term:wakelock"
+        )
 
         mHaveFullHwKeyboard = checkHaveFullHwKeyboard(getResources().configuration)
 
@@ -406,9 +408,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
                 mTermSessionIterator?.index?.let { sessions[it] }
             }
         }
-
-    private val currentEmulatorView: EmulatorView?
-        get() = mEmulatorView
 
     private fun updatePrefs() {
         mUseKeyboardShortcuts = mSettings?.useKeyboardShortcutsFlag == true
@@ -557,7 +556,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
 
         val session = mTermSessionIterator?.index?.let { mTermSessions?.removeAt(it) }
-        currentEmulatorView?.onPause()
+        mEmulatorView.onPause()
         session?.finish()
         if (mTermSessions?.isEmpty() == false) {
             mTermSessionIterator?.showNext()
@@ -648,7 +647,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     override fun onContextItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             SELECT_TEXT_ID -> {
-                this.currentEmulatorView?.toggleSelectingText()
+                this.mEmulatorView.toggleSelectingText()
                 true
             }
 
@@ -755,11 +754,11 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     private fun doSendControlKey() {
-        this.currentEmulatorView?.sendControlKey()
+        this.mEmulatorView.sendControlKey()
     }
 
     private fun doSendFnKey() {
-        this.currentEmulatorView?.sendFnKey()
+        this.mEmulatorView.sendFnKey()
     }
 
     private fun doDocumentKeys() {
@@ -836,7 +835,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
                 doToggleSoftKeyboard()
             }
         }
-        this.currentEmulatorView?.requestFocus()
+        this.mEmulatorView.requestFocus()
     }
 
     /**
