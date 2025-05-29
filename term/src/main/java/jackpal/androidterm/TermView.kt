@@ -16,16 +16,20 @@
 
 package jackpal.androidterm
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.util.DisplayMetrics
+import android.util.AttributeSet
 import jackpal.androidterm.emulatorview.ColorScheme
 import jackpal.androidterm.emulatorview.EmulatorView
-import jackpal.androidterm.emulatorview.TermSession
 import jackpal.androidterm.util.TermSettings
 
-@SuppressLint("ViewConstructor")
-class TermView(context: Context, session: TermSession, metrics: DisplayMetrics) : EmulatorView(context, session, metrics) {
+class TermView : EmulatorView {
+
+    constructor(context: Context) : super(context)
+
+    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)
+
+    constructor(context: Context, attrs: AttributeSet?, defStyle: Int) : super(context, attrs, defStyle)
+
     fun updatePrefs(settings: TermSettings, scheme: ColorScheme? = null) {
         val colorScheme = scheme ?: ColorScheme(settings.colorScheme)
         setTextSize(settings.fontSize)

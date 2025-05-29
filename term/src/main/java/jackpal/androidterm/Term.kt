@@ -52,7 +52,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
 import androidx.core.view.get
-import androidx.core.view.size
 import androidx.preference.PreferenceManager
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
@@ -62,6 +61,7 @@ import jackpal.androidterm.emulatorview.EmulatorView
 import jackpal.androidterm.emulatorview.TermSession
 import jackpal.androidterm.emulatorview.UpdateCallback
 import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat
+import jackpal.androidterm.util.SessionIteratorWrapper
 import jackpal.androidterm.util.SessionList
 import jackpal.androidterm.util.TermSettings
 import java.io.IOException
@@ -78,7 +78,9 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     /**
      * The ViewFlipper which holds the collection of EmulatorView widgets.
      */
-    private var mViewFlipper: TermViewFlipper? = null
+//    private var mTermSessionIterator: TermTermSessionIterator? = null
+    private var mTermSessionIterator: SessionIteratorWrapper? = null
+    private lateinit var mEmulatorView: TermView
 
     private var mTermSessions: SessionList? = null
 
@@ -164,10 +166,10 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
                 // Assume user wanted side to side movement
                 if (velocityX > 0) {
                     // Left to right swipe -- previous window
-                    mViewFlipper?.showPrevious()
+                    mTermSessionIterator?.showPrevious()
                 } else {
                     // Right to left swipe -- next window
-                    mViewFlipper?.showNext()
+                    mTermSessionIterator?.showNext()
                 }
                 return true
             } else {
@@ -204,9 +206,9 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
             if (keyCode == KeyEvent.KEYCODE_TAB && isCtrlPressed) {
                 if (isShiftPressed) {
-                    mViewFlipper?.showPrevious()
+                    mTermSessionIterator?.showPrevious()
                 } else {
-                    mViewFlipper?.showNext()
+                    mTermSessionIterator?.showNext()
                 }
 
                 return true
@@ -286,8 +288,11 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
         setContentView(R.layout.term_activity)
         setSupportActionBar(findViewById<MaterialToolbar>(R.id.toolbar))
-        mViewFlipper = findViewById<TermViewFlipper?>(R.id.view_flipper)
-        // 初始化 Spinner
+        mEmulatorView = findViewById<TermView>(R.id.emulator_view)
+        mEmulatorView.setDensity(resources.displayMetrics)
+        mEmulatorView.setExtGestureListener(EmulatorViewGestureListener(mEmulatorView))
+        mEmulatorView.setOnKeyListener(mKeyListener)
+        registerForContextMenu(mEmulatorView)
 
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Term:wakelock")
@@ -337,13 +342,14 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     private fun populateViewFlipper() {
-        if (mTermService != null) {
-            mTermSessions = mTermService?.sessions
+        mTermService?.let { service ->
+            mTermSessions = service.sessions
+            mTermSessionIterator = SessionIteratorWrapper(service.sessions, mEmulatorView)
 
             if (mTermSessions?.isEmpty() == true) {
                 try {
                     mTermSessions?.add(createTermSession())
-                    mTermService?.updateNotification()
+                    service.updateNotification()
                 } catch (_: IOException) {
                     Toast.makeText(this, "Failed to start terminal session", Toast.LENGTH_LONG)
                         .show()
@@ -354,20 +360,16 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
             mTermSessions?.addCallback(this)
 
-            if (mTermSessions != null) {
-                for (session in mTermSessions) {
-                    val view: EmulatorView = createEmulatorView(session)
-                    mViewFlipper?.addView(view)
-                }
-            }
-
             updatePrefs()
 
             if (onResumeSelectWindow >= 0) {
-                mViewFlipper?.setDisplayedChild(onResumeSelectWindow)
+                mTermSessionIterator!!.setDisplayedChild(onResumeSelectWindow)
                 onResumeSelectWindow = -1
+            } else {
+                mTermSessionIterator!!.setDisplayedChild(0)
+                onResumeSelectWindow = 0
             }
-            mViewFlipper?.onResume()
+            mEmulatorView.onResume()
         }
     }
 
@@ -395,43 +397,26 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
     }
 
-    private fun createEmulatorView(session: TermSession): TermView {
-        val metrics = resources.displayMetrics
-        val emulatorView = TermView(this, session, metrics)
-
-        emulatorView.setExtGestureListener(EmulatorViewGestureListener(emulatorView))
-        emulatorView.setOnKeyListener(mKeyListener)
-        registerForContextMenu(emulatorView)
-
-        return emulatorView
-    }
-
     private val currentTermSession: TermSession?
         get() {
             val sessions = mTermSessions
             return if (sessions == null) {
                 null
             } else {
-                mViewFlipper?.displayedChild?.let { sessions[it] }
+                mTermSessionIterator?.index?.let { sessions[it] }
             }
         }
 
     private val currentEmulatorView: EmulatorView?
-        get() = mViewFlipper?.currentView as EmulatorView?
+        get() = mEmulatorView
 
     private fun updatePrefs() {
         mUseKeyboardShortcuts = mSettings?.useKeyboardShortcutsFlag == true
 
         val metrics = resources.displayMetrics
 
-        mSettings?.let { mViewFlipper?.updatePrefs(it) }
-
-        if (mViewFlipper != null) {
-            for (v in mViewFlipper) {
-                (v as EmulatorView).setDensity(metrics)
-                mSettings?.let { (v as TermView).updatePrefs(it) }
-            }
-        }
+        mSettings?.let { mEmulatorView.updatePrefs(it) }
+        mEmulatorView.setDensity(metrics)
 
         if (mTermSessions != null) {
             for (session in mTermSessions) {
@@ -476,20 +461,17 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         /* Explicitly close the input method
            Otherwise, the soft keyboard could cover up whatever activity takes
            our place */
-        val token = mViewFlipper?.windowToken
-        Thread(Runnable {
+        val token = mEmulatorView.windowToken
+        Thread {
             val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(token, 0)
-        }).start()
+        }.start()
     }
 
     override fun onStop() {
-        mViewFlipper?.onPause()
         if (mTermSessions != null) {
             mTermSessions?.removeCallback(this)
         }
-
-        mViewFlipper?.removeAllViews()
 
         mTSConnection?.let { unbindService(it) }
 
@@ -506,8 +488,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
         mHaveFullHwKeyboard = checkHaveFullHwKeyboard(newConfig)
 
-        val v = mViewFlipper?.currentView as EmulatorView?
-        v?.updateSize(false)
+        mEmulatorView.updateSize(false)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -519,7 +500,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         var result = true
-        when(item.itemId) {
+        when (item.itemId) {
             R.id.menu_preferences -> doPreferences()
             R.id.menu_new_window -> doCreateNewWindow()
             R.id.menu_close_window -> confirmCloseWindow()
@@ -528,6 +509,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
                 doResetTerminal()
                 Toast.makeText(this, R.string.reset_toast_notification, Toast.LENGTH_LONG).show()
             }
+
             R.id.menu_special_keys -> doDocumentKeys()
             R.id.menu_toggle_soft_keyboard -> doToggleSoftKeyboard()
             R.id.menu_toggle_wakelock -> doToggleWakeLock()
@@ -543,16 +525,12 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         }
 
         try {
-            val session = createTermSession()
-
-            mTermSessions?.add(session)
+            mTermSessions?.add(createTermSession())
             mTermService?.updateNotification()
 
-            val view = createEmulatorView(session)
-            mSettings?.let { view.updatePrefs(it) }
+            mSettings?.let { mEmulatorView.updatePrefs(it) }
 
-            mViewFlipper?.addView(view)
-            mViewFlipper?.size?.let { mViewFlipper?.setDisplayedChild(it - 1) }
+            mTermSessions?.size?.let { mTermSessionIterator?.setDisplayedChild(it - 1) }
         } catch (_: IOException) {
             Toast.makeText(this, "Failed to create a session", Toast.LENGTH_SHORT).show()
         }
@@ -578,27 +556,20 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
             return
         }
 
-        val view = this.currentEmulatorView
-        if (view == null) {
-            return
-        }
-        val session = mViewFlipper?.displayedChild?.let { mTermSessions?.removeAt(it) }
-        view.onPause()
+        val session = mTermSessionIterator?.index?.let { mTermSessions?.removeAt(it) }
+        currentEmulatorView?.onPause()
         session?.finish()
-        mViewFlipper?.removeView(view)
-        mTermSessions?.isEmpty()?.let {
-            if (!it) {
-                mViewFlipper?.showNext()
-            }
+        if (mTermSessions?.isEmpty() == false) {
+            mTermSessionIterator?.showNext()
         }
     }
 
     private fun windowList() {
-        val adapter = WindowListAdapter(mTermSessions, mViewFlipper?.displayedChild?: -1)
+        val adapter = WindowListAdapter(mTermSessions, mTermSessionIterator?.index ?: -1, mTermSessionIterator)
         adapter.mDialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.window_list)
             .setAdapter(adapter) { _, which ->
-                mViewFlipper?.setDisplayedChild(which)
+                mTermSessionIterator?.setDisplayedChild(which)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -607,7 +578,11 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     class CloseButton : MaterialButton {
         constructor(context: Context) : super(context)
         constructor(context: Context, attrs: AttributeSet) : super(context, attrs)
-        constructor(context: Context, attrs: AttributeSet, style: Int) : super(context, attrs, style)
+        constructor(context: Context, attrs: AttributeSet, style: Int) : super(
+            context,
+            attrs,
+            style
+        )
 
         override fun setPressed(pressed: Boolean) {
             if (pressed && (parent as View).isPressed) {
@@ -748,20 +723,6 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
         if (sessions.isEmpty()) {
             mStopServiceOnFinish = true
             finish()
-        } else mViewFlipper?.size?.let {
-            if (sessions.size < it) {
-                var i = 0
-                while (i < it) {
-                    val v = mViewFlipper?.getChildAt(i) as EmulatorView?
-                    if (v == null) break
-                    if (!sessions.contains(v.termSession)) {
-                        v.onPause()
-                        mViewFlipper?.removeView(v)
-                        --i
-                    }
-                    ++i
-                }
-            }
         }
     }
 

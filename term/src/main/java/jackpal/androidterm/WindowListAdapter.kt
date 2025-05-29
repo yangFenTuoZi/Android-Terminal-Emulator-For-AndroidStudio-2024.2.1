@@ -27,9 +27,10 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.radiobutton.MaterialRadioButton
 import jackpal.androidterm.emulatorview.UpdateCallback
+import jackpal.androidterm.util.SessionIteratorWrapper
 import jackpal.androidterm.util.SessionList
 
-open class WindowListAdapter(val mSessions: SessionList?, val displayedChild: Int) : BaseAdapter(), UpdateCallback {
+open class WindowListAdapter(val mSessions: SessionList?, val displayedChild: Int, val sessionIterator: SessionIteratorWrapper?) : BaseAdapter(), UpdateCallback {
 
     var mDialog: AlertDialog? = null
 
@@ -72,7 +73,7 @@ open class WindowListAdapter(val mSessions: SessionList?, val displayedChild: In
             val session = sessions?.removeAt(closePosition)
             if (session != null) {
                 session.finish()
-                notifyDataSetChanged()
+                sessionIterator?.showNext()
             }
         }
         child?.findViewById<TextView>(R.id.window_list_label)?.apply {

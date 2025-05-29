@@ -215,20 +215,19 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     private val mUpdateNotify = object : UpdateCallback {
         override fun onUpdate() {
             if (mIsSelectingText) {
-                val rowShift = mEmulator!!.scrollCounter
-                mSelY1 -= rowShift
-                mSelY2 -= rowShift
-                mSelYAnchor -= rowShift
+                mEmulator?.scrollCounter?.let { rowShift ->
+                    mSelY1 -= rowShift
+                    mSelY2 -= rowShift
+                    mSelYAnchor -= rowShift
+                }
             }
-            mEmulator!!.clearScrollCounter()
+            mEmulator?.clearScrollCounter()
             ensureCursorVisible()
             invalidate()
         }
     }
 
-    constructor(context: Context, session: TermSession, metrics: DisplayMetrics) : super(context) {
-        attachSession(session)
-        setDensity(metrics)
+    constructor(context: Context) : super(context) {
         commonConstructor(context)
     }
 
@@ -268,8 +267,8 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
         if (mDeferInit) {
             mDeferInit = false
             mKnownSize = true
-            initialize()
         }
+        initialize()
     }
 
     fun setDensity(metrics: DisplayMetrics) {
@@ -602,7 +601,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     }
 
     fun getKeypadApplicationMode(): Boolean {
-        return mEmulator!!.keypadApplicationMode
+        return mEmulator?.keypadApplicationMode == true
     }
 
     fun setExtGestureListener(listener: GestureDetector.OnGestureListener?) {
@@ -610,7 +609,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     }
 
     override fun computeVerticalScrollRange(): Int {
-        return mEmulator!!.screen!!.activeRows
+        return mEmulator?.screen?.activeRows ?: 0
     }
 
     override fun computeVerticalScrollExtent(): Int {
@@ -618,7 +617,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     }
 
     override fun computeVerticalScrollOffset(): Int {
-        return mEmulator!!.screen!!.activeRows + mTopRow - mRows
+        return (mEmulator?.screen?.activeRows ?: 0) + mTopRow - mRows
     }
 
     private fun initialize() {
@@ -650,8 +649,10 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     }
 
     fun page(delta: Int) {
-        mTopRow =
-            0.coerceAtMost((-mEmulator!!.screen!!.activeTranscriptRows).coerceAtLeast(mTopRow + mRows * delta))
+        mEmulator?.screen?.activeTranscriptRows?.let {
+            mTopRow =
+                0.coerceAtMost((-it).coerceAtLeast(mTopRow + mRows * delta))
+        }
         invalidate()
     }
 
@@ -671,7 +672,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     }
 
     val isMouseTrackingActive: Boolean
-        get() = mEmulator!!.mouseTrackingMode != 0 && mMouseTracking
+        get() = mEmulator?.mouseTrackingMode != 0 && mMouseTracking
 
 
     private fun sendMouseEventCode(e: MotionEvent, button_code: Int) {
@@ -740,8 +741,10 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
             return true
         }
 
-        mTopRow =
-            0.coerceAtMost((-mEmulator!!.screen!!.activeTranscriptRows).coerceAtLeast(mTopRow + deltaRows))
+        mEmulator?.screen?.activeTranscriptRows?.let {
+            mTopRow =
+                0.coerceAtMost((-it).coerceAtLeast(mTopRow + deltaRows))
+        }
         invalidate()
 
         return true
@@ -756,7 +759,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     }
 
     fun onJumpTapUp(e1: MotionEvent, e2: MotionEvent): Boolean {
-        mTopRow = -mEmulator!!.screen!!.activeTranscriptRows
+        mEmulator?.screen?.activeTranscriptRows?.let { mTopRow = -it }
         invalidate()
         return true
     }
@@ -776,12 +779,14 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
             mMouseTrackingFlingRunner.fling(e1, velocityX, velocityY)
         } else {
             val SCALE = 0.25f
-            mScroller!!.fling(
-                0, mTopRow,
-                -(velocityX * SCALE).toInt(), -(velocityY * SCALE).toInt(),
-                0, 0,
-                -mEmulator!!.screen!!.activeTranscriptRows, 0
-            )
+            mEmulator?.screen?.activeTranscriptRows?.let {
+                mScroller?.fling(
+                    0, mTopRow,
+                    -(velocityX * SCALE).toInt(), -(velocityY * SCALE).toInt(),
+                    0, 0,
+                    -it, 0
+                )
+            }
             post(mFlingRunner)
         }
         return true
@@ -1055,17 +1060,17 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
         val w = width
         val h = height
 
-        val reverseVideo = mEmulator!!.reverseVideo
+        val reverseVideo = mEmulator?.reverseVideo == true
         mTextRenderer?.setReverseVideo(reverseVideo)
 
-        val backgroundPaint = if (reverseVideo) mForegroundPaint else mBackgroundPaint
+        val backgroundPaint = if (reverseVideo == true) mForegroundPaint else mBackgroundPaint
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), backgroundPaint)
         var x = -mLeftColumn * mCharacterWidth
         var y = mCharacterHeight + mTopOfScreenMargin
         val endLine = mTopRow + mRows
-        val cx = mEmulator!!.cursorCol
-        val cy = mEmulator!!.cursorRow
-        val cursorVisible = mCursorVisible && mEmulator!!.showCursor
+        val cx = mEmulator?.cursorCol ?: 0
+        val cy = mEmulator?.cursorRow
+        val cursorVisible = mCursorVisible && mEmulator?.showCursor == true
         var effectiveImeBuffer = mImeBuffer
         val combiningAccent = mKeyListener?.combiningAccent ?: 0
         if (combiningAccent != 0) {
@@ -1088,10 +1093,12 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
                 }
                 selx2 = if (i == mSelY2) mSelX2 else mColumns
             }
-            mEmulator!!.screen!!.drawText(
-                i, canvas, x,
-                y.toFloat(), mTextRenderer!!, cursorX, selx1, selx2, effectiveImeBuffer, cursorStyle
-            )
+            mTextRenderer?.let {
+                mEmulator?.screen?.drawText(
+                    i, canvas, x,
+                    y.toFloat(), it, cursorX, selx1, selx2, effectiveImeBuffer, cursorStyle
+                )
+            }
             y += mCharacterHeight
             if (linkLinesToSkip == 0) {
                 linkLinesToSkip = createLinks(i)
@@ -1103,11 +1110,13 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     private fun ensureCursorVisible() {
         mTopRow = 0
         if (mVisibleColumns > 0) {
-            val cx = mEmulator!!.cursorCol
-            val visibleCursorX = mEmulator!!.cursorCol - mLeftColumn
-            when {
-                visibleCursorX < 0 -> mLeftColumn = cx
-                visibleCursorX >= mVisibleColumns -> mLeftColumn = cx - mVisibleColumns + 1
+            val cx = mEmulator?.cursorCol ?: 0
+            val visibleCursorX = mEmulator?.cursorCol?.minus(mLeftColumn)
+            if (visibleCursorX != null) {
+                when {
+                    visibleCursorX < 0 -> mLeftColumn = cx
+                    visibleCursorX >= mVisibleColumns -> mLeftColumn = cx - mVisibleColumns + 1
+                }
             }
         }
     }
@@ -1128,7 +1137,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
     }
 
     fun getSelectedText(): String? {
-        return mEmulator!!.getSelectedText(mSelX1, mSelY1, mSelX2, mSelY2)
+        return mEmulator?.getSelectedText(mSelX1, mSelY1, mSelX2, mSelY2)
     }
 
     fun sendControlKey() {
