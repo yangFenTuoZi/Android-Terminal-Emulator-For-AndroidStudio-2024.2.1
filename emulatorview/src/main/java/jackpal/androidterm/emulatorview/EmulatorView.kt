@@ -43,7 +43,8 @@ import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.widget.Scroller
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat
+import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.clipboardManager
+import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.textX
 import jackpal.androidterm.emulatorview.compat.Patterns
 import java.io.IOException
 import java.util.Arrays
@@ -837,8 +838,7 @@ open class EmulatorView : View, GestureDetector.OnGestureListener {
                 mSelX2 = maxx
                 mSelY2 = maxy
                 if (action == MotionEvent.ACTION_UP) {
-                    val clip = ClipboardManagerCompat(context.applicationContext)
-                    clip.text = getSelectedText()?.trim()
+                    context.clipboardManager.textX = getSelectedText()?.trim()
                     toggleSelectingText()
                 }
                 invalidate()

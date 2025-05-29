@@ -60,7 +60,9 @@ import jackpal.androidterm.TermService.TSBinder
 import jackpal.androidterm.emulatorview.EmulatorView
 import jackpal.androidterm.emulatorview.TermSession
 import jackpal.androidterm.emulatorview.UpdateCallback
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerCompat
+import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.clipboardManager
+import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.hasTextX
+import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.textX
 import jackpal.androidterm.util.SessionIteratorWrapper
 import jackpal.androidterm.util.SessionList
 import jackpal.androidterm.util.TermSettings
@@ -726,8 +728,7 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     private fun canPaste(): Boolean {
-        val clip = ClipboardManagerCompat(applicationContext)
-        return clip.hasText()
+        return clipboardManager.hasTextX
     }
 
     private fun doPreferences() {
@@ -740,16 +741,14 @@ open class Term : AppCompatActivity(), UpdateCallback, OnSharedPreferenceChangeL
     }
 
     private fun doCopyAll() {
-        val clip = ClipboardManagerCompat(applicationContext)
-        this.currentTermSession?.transcriptText?.let { clip.text = it.trim { it <= ' ' } }
+        this.currentTermSession?.transcriptText?.let { clipboardManager.textX = it.trim { it <= ' ' } }
     }
 
     private fun doPaste() {
         if (!canPaste()) {
             return
         }
-        val clip = ClipboardManagerCompat(applicationContext)
-        val paste = clip.text
+        val paste = clipboardManager.textX
         this.currentTermSession?.write(paste.toString())
     }
 
