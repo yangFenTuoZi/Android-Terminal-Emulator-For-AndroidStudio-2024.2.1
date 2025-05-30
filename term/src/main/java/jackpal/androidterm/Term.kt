@@ -60,9 +60,9 @@ import jackpal.androidterm.TermService.TSBinder
 import jackpal.androidterm.emulatorview.EmulatorView
 import jackpal.androidterm.emulatorview.TermSession
 import jackpal.androidterm.emulatorview.UpdateCallback
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.clipboardManager
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.hasTextX
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.textX
+import jackpal.androidterm.emulatorview.kotlin.ClipboardManagerKT.clipboardManager
+import jackpal.androidterm.emulatorview.kotlin.ClipboardManagerKT.hasTextX
+import jackpal.androidterm.emulatorview.kotlin.ClipboardManagerKT.textX
 import jackpal.androidterm.util.SessionIteratorWrapper
 import jackpal.androidterm.util.SessionList
 import jackpal.androidterm.util.TermSettings

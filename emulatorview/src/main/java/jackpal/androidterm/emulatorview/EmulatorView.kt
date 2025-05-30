@@ -43,9 +43,9 @@ import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.widget.Scroller
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.clipboardManager
-import jackpal.androidterm.emulatorview.compat.ClipboardManagerKT.textX
 import jackpal.androidterm.emulatorview.compat.Patterns
+import jackpal.androidterm.emulatorview.kotlin.ClipboardManagerKT.clipboardManager
+import jackpal.androidterm.emulatorview.kotlin.ClipboardManagerKT.textX
 import java.io.IOException
 import java.util.Arrays
 import java.util.Hashtable

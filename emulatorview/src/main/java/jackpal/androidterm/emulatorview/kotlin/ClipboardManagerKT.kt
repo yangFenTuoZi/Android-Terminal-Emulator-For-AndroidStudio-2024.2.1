@@ -1,4 +1,4 @@
-package jackpal.androidterm.emulatorview.compat
+package jackpal.androidterm.emulatorview.kotlin
 
 import android.content.ClipData
 import android.content.ClipDescription
